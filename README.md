@@ -24,8 +24,32 @@
 ## 文档
 
 - [产品需求文档](docs/PRD.md)
+- [软件架构与接口契约](docs/ARCHITECTURE.md)
+- [进度记录与实测数据](docs/PROGRESS.md)
+
+## 快速开始（本地）
+
+```bash
+cp .env.example .env        # 填入 STEPFUN_API_KEY（不填则用预生成案例演示）
+cd server && npm install
+npm start                   #  http://localhost:8787 ，日志里会打印局域网地址
+```
+
+```bash
+cd server
+npm run mock-device         # 可选：模拟实体设备，验证真实设备通道
+npm run smoke               # 端到端测试（演示模式 + 模拟设备两条路径）
+npm run try-llm -- "如果我当时……" medium 4000   # 调试 prompt 与耗时
+```
+
+手机连同一 Wi-Fi 后访问日志里的局域网地址即可体验；没有实体设备时页面会提供
+「我完成了翻转（演示）」按钮，与真机走同一套状态机和打印门控。
 
 ## 当前状态
 
-概念与 MVP 定义阶段。
+软件闭环已跑通（PRD 阶段一）：StepFun `step-5-preview` + JSON Schema 严格结构化输出 →
+三幕故事 → 翻转动作 → 热敏小票字节流（ESC/POS，含二维码）→ 手机端展示与保存长图。
+硬件协议已定义并由模拟设备验证，采购后按 [ARCHITECTURE.md](docs/ARCHITECTURE.md) 第 5 节接入即可。
+
+详细进度、验证数据与延迟实测见 [docs/PROGRESS.md](docs/PROGRESS.md)。
 

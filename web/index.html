@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>没走的路 · Road Not Taken</title>
+  <meta name="description" content="说一条你没走过的路，模型生成它不那么美好的真实版本。" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="img/act-1.png" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">没走的路 <span>Road Not Taken</span></div>
+      <div id="device-badge" class="badge hidden">设备已连接</div>
+    </header>
+
+    <div id="offline-banner" class="banner hidden">
+      <span>未连接本地服务，当前是<strong>演示模式</strong>（预生成案例）</span>
+      <button id="btn-connect" class="link" type="button">连接本地服务</button>
+    </div>
+
+    <main>
+      <!-- 1. 输入 -->
+      <section id="view-input" class="view">
+        <h1>说一条你没走过的路</h1>
+        <p class="sub">模型不继续美化它，只补上那条路上的通勤、账单、争吵和意外。</p>
+
+        <div class="field">
+          <textarea id="input-text" rows="3" maxlength="100" placeholder="如果当时我……"></textarea>
+          <div class="row between">
+            <span id="char-count" class="muted">0 / 100</span>
+            <button id="btn-mic" class="ghost hidden" type="button">🎤 语音输入</button>
+          </div>
+        </div>
+
+        <p id="input-error" class="error hidden" role="alert"></p>
+        <button id="btn-generate" class="primary" type="button">生成另一条路</button>
+
+        <div class="chips">
+          <div class="muted small">没有想法？点一个试试：</div>
+          <div id="demo-chips" class="chips-row"></div>
+        </div>
+      </section>
+
+      <!-- 2. 生成中 -->
+      <section id="view-generating" class="view hidden">
+        <div class="spinner" aria-hidden="true"></div>
+        <h2 id="generating-text">正在拆掉那条路上的滤镜……</h2>
+        <p class="sub">三幕故事 + 一张小票正在生成，通常 10-30 秒。</p>
+        <button class="ghost" type="button" data-action="restart">重新输入</button>
+      </section>
+
+      <!-- 3. 等待硬件动作 -->
+      <section id="view-waiting" class="view hidden">
+        <h2>翻转设备，揭晓第一幕</h2>
+        <div id="action-card" class="action-card">
+          <div id="action-text" class="action-text">向左翻 1 次</div>
+          <div id="action-dots" class="dots"></div>
+        </div>
+        <p id="waiting-hint" class="sub">按屏幕提示翻转设备；每完成一段动作，打印机吐出一幕。</p>
+        <button id="btn-simulate" class="primary hidden" type="button">我完成了翻转（演示）</button>
+        <p id="waiting-note" class="muted small"></p>
+        <button class="ghost" type="button" data-action="restart">重新输入</button>
+      </section>
+
+      <!-- 4. 打印中 -->
+      <section id="view-printing" class="view hidden">
+        <div class="printer" aria-hidden="true"><div class="paper"></div></div>
+        <h2 id="printing-text">打印机正在工作……</h2>
+        <p class="sub">小票只能向前输出，就像选择无法回退。</p>
+      </section>
+
+      <!-- 5. 结果 -->
+      <section id="view-result" class="view hidden">
+        <div id="receipt" class="receipt"></div>
+        <div class="actions">
+          <button id="btn-save" class="primary" type="button">保存长图</button>
+          <button id="btn-share" class="ghost" type="button">复制分享链接</button>
+          <button class="ghost" type="button" data-action="restart">再玩一次</button>
+        </div>
+      </section>
+    </main>
+
+    <footer>模型生成的虚构故事，不是人生预测 · Road Not Taken</footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
