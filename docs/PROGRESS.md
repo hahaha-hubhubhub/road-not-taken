@@ -50,19 +50,27 @@
 - 小票字节流 73,661 字节，文本折行/虚线/三张插画/二维码共 8 段位图，ASCII 预览正确。
 - `GET /api/sessions/:id/qr.png` 返回 480×480 PNG；`/img/act-*.png` 等静态资源 200。
 - `tsc --noEmit` 无错误；`node --check web/app.js` 通过。
+- **无头 Chrome 真实浏览器验证**：`?autostart=…` 打开即自动跑完 创建→生成→动作→打印→结果，
+  小票标题/三幕标签/结尾/免责声明全部正确渲染；`?api=<不可达地址>` 时正确进入演示模式
+  （离线横幅 + 预生成案例 + "演示模式"页脚）。
+- 静态托管已部署：`https://calm-willow-8970.page.stepcloud.com`（steppage，web/ 目录原样托管，
+  无后端时自动进入演示模式，可用 `?api=http://<局域网IP>:8787` 指向本地服务）。
 
 ### 延迟实测（step-5-preview，同一 prompt）
 
 | 配置 | 耗时 |
 | --- | --- |
-| `reasoning_effort=medium` + `max_tokens=4000`（当前默认） | 21–32s |
+| `reasoning_effort=medium` + `max_tokens=8000`（当前默认） | 21–34s |
 | `reasoning_effort=low` | 28–41s |
 | `reasoning_effort=high` | 约 39s |
 | `step-3.7-flash`（备用） | 10–16s |
 
-> 关键发现：**思考过程计入 completion_tokens**。`max_tokens=1600` 时正文会被截断甚至返回空内容，
-> 因此默认值改为 4000。PRD 的 30 秒目标在 `medium` 下基本达成；现场网络差时用
-> `STEPFUN_MODEL=step-3.7-flash` 降级（改一个环境变量）。
+> 关键发现 1：**思考过程计入 completion_tokens**。`max_tokens=1600` 时正文会被截断甚至返回空内容，
+> 4000 时偶发仍被截断（实测一次思考 3500+ tokens，重试后总耗时 77 秒），
+> 因此默认值改为 **8000**，并在被截断时自动加额 1.5 倍重试（上限 12000）。
+>
+> 关键发现 2：单次耗时方差较大（21–53 秒），取决于模型思考长度。PRD 的 30 秒目标在 `medium` 下
+> 基本达成；现场网络差或要求稳定 15 秒内时，用 `STEPFUN_MODEL=step-3.7-flash` 降级（改一个环境变量）。
 
 ---
 
@@ -73,11 +81,12 @@
 | 服务端做完全部排版与位图转换，硬件只写字节流 | PRD 第 11 节；联调复杂度留在软件侧 |
 | 三幕标签由服务端渲染，模型只输出 caption / image_prompt | 减少模型漂移，打印长度可控 |
 | 用 `json_schema` + `strict:true` 而不是 JSON Mode | API 级强制约束，比 prompt 里写 Schema 稳定 |
-| 思考 + 正文共用一个 `max_tokens` 预算（4000） | 避免推理吃光额度导致正文为空 |
+| 思考 + 正文共用一个 `max_tokens` 预算（默认 8000） | 避免推理吃光额度导致正文为空/截断 |
 | 断网/超时立即降级，不重试 | 演示不能中断；校验失败才重试 1 次 |
 | 无硬件时用 `simulate-action` 代替设备上报 | 与真机共用同一状态机和打印门控，硬件到位后零改动 |
 | 插画先用预置线描图 | PRD §13 允许的降级方案；接入出图后只换 `presetImageBitmap()` |
 | 前端零依赖零构建 | 可直接静态托管，手机扫码即用 |
+| 静态托管用 steppage | 与 StepFun 同平台，一把 Key；无后端时页面自动进入演示模式 |
 
 ---
 
@@ -94,7 +103,10 @@
 
 ### 软件
 
-- [ ] 接入图片生成，替换预置插画（AI-03），保持同一人物设定
+- [x] 接入图片生成的前置工作：画面提示词已由模型生成（AI-02），插画先用预置线描（AI-03 降级）
+- [ ] 接入图片生成模型，替换预置插画（AI-03），保持同一人物设定
+- [x] 前端静态托管（steppage）：https://calm-willow-8970.page.stepcloud.com
 - [ ] 现场演示：`PUBLIC_WEB_URL` 改为局域网 IP，小票二维码才能被手机扫开
 - [ ] 压测：连续 20 次不断流（PRD 第 9 节）
 - [ ] 语音输入在 iOS Safari 的兼容性确认（WEB-02）
+- [ ] 现场网络对 `stepcloud.com` 的访问确认（本机 TLS 被阻断，未能从开发机验证线上页面）

@@ -212,10 +212,13 @@ Schema 结构：`title` / `scenes[3]{caption, image_prompt}` / `ending` / `discl
 
 | 配置 | 实测耗时 | 说明 |
 | --- | --- | --- |
-| `reasoning_effort=medium`, `max_tokens=4000` | **21–32s** | 当前默认，内容质量最好 |
+| `reasoning_effort=medium`, `max_tokens=8000` | **21–34s** | 当前默认，内容质量最好 |
 | `reasoning_effort=low`, `max_tokens=4000` | 28–41s | 未必更快 |
 | `reasoning_effort=high`, `max_tokens=4000` | 约 39s | 不必要 |
 | `step-3.7-flash`（改一个环境变量即可切换） | 10–16s | 现场若必须压到 15 秒内 |
+
+`max_tokens` 默认 8000 是因为**思考过程计入 completion_tokens**：1600 会让正文被截断甚至返回空内容，
+4000 偶发仍不够（实测一次思考 3500+ tokens）。被截断时服务端会自动加额 1.5 倍重试（上限 12000）。
 
 PRD AI-05 目标 30 秒：`medium` 下基本达标；若现场网络差，用
 `STEPFUN_MODEL=step-3.7-flash` 降级。
