@@ -104,7 +104,7 @@ cd server && npm run smoke
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/health` | 健康检查，返回当前模型 |
+| GET | `/health` | 健康检查：`model` / `mockLlm` / `hasServerKey` |
 | GET | `/demo/cases` | 预生成演示案例（断网时前端可展示） |
 | GET | `/device/status` | 是否有实体设备在线 |
 | POST | `/sessions` | 创建 session，返回 `sessionId` |
@@ -142,6 +142,20 @@ cd server && npm run smoke
 
 错误约定：输入不合规返回 400 + `{error}`；session 不存在返回 404；
 状态不允许返回 409 + `{error, state}`。
+
+### 4.1 API Key 的两种提供方式
+
+| 方式 | 用法 | 适用 |
+| --- | --- | --- |
+| 页面「设置」填写 | 前端存 `localStorage`，请求带 `X-Stepfun-Api-Key` 头（可选 `X-Stepfun-Model` 切模型） | 本机演示：克隆仓库 → `npm start` → 页面上填 Key 即可 |
+| 服务端 `.env` | `STEPFUN_API_KEY=...` | 部署到服务器，前端零配置 |
+
+优先级：**请求头的 Key > 服务端 .env 的 Key**。两者都没有时，生成接口返回明确错误
+（`未配置 API Key：请点右上角「设置」…`），前端自动弹出设置面板，**不再静默降级**——
+只有显式 `MOCK_LLM=1` 才走预生成案例。
+
+安全提示：Key 存在浏览器里意味着"谁能打开这个页面谁就能用你的 Key"，
+所以只建议 localhost / 局域网自用；部署到公网时应改用服务端 `.env` 并加访问令牌。
 
 ---
 
@@ -192,7 +206,8 @@ cd server && npm run smoke
 
 ### 6.1 结构化输出
 
-- 模型：`step-5-preview`（StepFun，OpenAI 兼容，`https://api.stepfun.com/v1`）。
+- 模型：默认 `step-5-preview`（StepFun，OpenAI 兼容，`https://api.stepfun.com/v1`）；
+  可在页面「设置」里临时切到 `step-3.7-flash` / `step-3.5-flash`（请求头 `X-Stepfun-Model` 优先）。
 - 方式：`response_format: {"type":"json_schema","json_schema":{"name":"road_not_taken_story","strict":true,"schema":…}}`。
   这是 **API 层强制约束**，比把 Schema 写进 prompt 的 JSON Mode 稳定得多。
 - 服务端仍用 zod 二次校验（三幕数量、字数、空值），不通过则把错误反馈给模型重试。

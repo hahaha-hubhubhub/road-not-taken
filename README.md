@@ -30,16 +30,21 @@
 ## 快速开始（本地）
 
 ```bash
-cp .env.example .env        # 填入 STEPFUN_API_KEY（不填则用预生成案例演示）
+cp .env.example .env        # 密钥可以先不填
 cd server && npm install
-npm start                   #  http://localhost:8787 ，日志里会打印局域网地址
+npm start                   #  http://localhost:8787
 ```
+
+打开页面后**点右上角「设置」填入 StepFun API Key**（只保存在这台设备的浏览器里，
+生成时随请求头发给本地服务端），即可直接使用。也可以在 `.env` 里配 `STEPFUN_API_KEY`，
+两种方式可并存，**页面设置的 Key 优先**。
 
 ```bash
 cd server
 npm run mock-device         # 可选：模拟实体设备，验证真实设备通道
-npm run smoke               # 端到端测试（演示模式 + 模拟设备两条路径）
-npm run try-llm -- "如果我当时……" medium 4000   # 调试 prompt 与耗时
+npm run smoke               # 端到端测试（自动读取 .env / 环境变量里的 Key）
+npm run browser-check       # 真实浏览器端到端（CDP，会等生成完成）
+npm run try-llm -- "如果我当时……" medium 8000   # 调试 prompt 与耗时
 ```
 
 手机连同一 Wi-Fi 后访问日志里的局域网地址即可体验；没有实体设备时页面会提供

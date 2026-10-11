@@ -20,7 +20,7 @@ app.use((req, res, next) => {
     config.allowedOrigin === '*' ? '*' : origin && allowList.includes(origin) ? origin : '';
   if (allowOrigin) res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Stepfun-Api-Key, X-Stepfun-Model');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   if (req.method === 'OPTIONS') {
     res.sendStatus(204);

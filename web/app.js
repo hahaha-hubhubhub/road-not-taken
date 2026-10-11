@@ -21,8 +21,17 @@
     try { return localStorage.getItem('rnt.apiBase') || location.origin; } catch (_) { return location.origin; }
   }
 
+  const safeGet = (key) => {
+    try { return localStorage.getItem(key) || ''; } catch (_) { return ''; }
+  };
+  const safeSet = (key, value) => {
+    try { localStorage.setItem(key, value); } catch (_) {}
+  };
+
   const state = {
     apiBase: resolveApiBase(),
+    apiKey: safeGet('rnt.apiKey') || '',
+    model: safeGet('rnt.model') || '',
     sessionId: null,
     poll: null,
     online: false,
@@ -31,6 +40,9 @@
     result: null,
     lastState: null,
     printingTimer: null,
+    hasServerKey: false,
+    mockLlm: false,
+    serverModel: '',
   };
 
   /* ---------------- 内置演示案例（无后端时也能看） ---------------- */
@@ -91,7 +103,11 @@
       const timer = setTimeout(() => controller.abort(), options.timeout ?? 20000);
       res = await fetch(apiUrl(path), {
         method: options.method || 'GET',
-        headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+        headers: {
+          ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(state.apiKey ? { 'X-Stepfun-Api-Key': state.apiKey } : {}),
+          ...(state.model ? { 'X-Stepfun-Model': state.model } : {}),
+        },
         body: options.body ? JSON.stringify(options.body) : undefined,
         signal: controller.signal,
       });
@@ -130,6 +146,29 @@
     $('device-badge').classList.toggle('hidden', !state.deviceConnected);
   }
 
+  /** 右上角状态：已就绪 / 未设置 Key / 未连接 */
+  function updateStatus() {
+    const el = $('btn-status');
+    if (!state.online) {
+      el.textContent = '未连接服务';
+      el.className = 'status warn';
+      return;
+    }
+    const hasKey = Boolean(state.apiKey) || state.hasServerKey;
+    if (state.mockLlm) {
+      el.textContent = '演示模式';
+      el.className = 'status';
+      return;
+    }
+    if (!hasKey) {
+      el.textContent = '未设置 Key';
+      el.className = 'status warn';
+      return;
+    }
+    el.textContent = `已就绪 · ${state.model || state.serverModel || '默认模型'}`;
+    el.className = 'status ok';
+  }
+
   function enterOffline(reason) {
     state.online = false;
     state.deviceConnected = false;
@@ -137,6 +176,7 @@
     $('offline-banner').classList.remove('hidden');
     state.demoCases = EMBEDDED_CASES;
     renderChips();
+    updateStatus();
     if (reason) document.body.dataset.offlineReason = String(reason).slice(0, 200);
   }
 
@@ -153,6 +193,9 @@
       const health = await api('/health', { timeout: 4000 });
       if (!health || health.ok !== true) throw new Error('健康检查异常');
       state.online = true;
+      state.hasServerKey = Boolean(health.hasServerKey);
+      state.mockLlm = Boolean(health.mockLlm);
+      state.serverModel = health.model || '';
       $('offline-banner').classList.add('hidden');
       try {
         const status = await api('/device/status', { timeout: 4000 });
@@ -167,7 +210,41 @@
     } catch (err) {
       enterOffline(err && err.message ? err.message : 'probe failed');
     }
+    updateStatus();
     renderChips();
+
+    // 首次进入且没有任何 Key 时，自动弹出设置面板（只提示一次）
+    if (state.online && !state.mockLlm && !state.apiKey && !state.hasServerKey && !safeGet('rnt.settingsSeen')) {
+      safeSet('rnt.settingsSeen', '1');
+      setTimeout(openSettings, 500);
+    }
+  }
+
+  /* ---------------- 设置弹窗 ---------------- */
+  function openSettings() {
+    $('input-key').value = state.apiKey;
+    $('input-api').value = state.apiBase;
+    $('select-model').value = state.model || state.serverModel || 'step-5-preview';
+    $('settings-modal').classList.remove('hidden');
+  }
+
+  function closeSettings() {
+    $('settings-modal').classList.add('hidden');
+  }
+
+  function saveSettings() {
+    state.apiKey = $('input-key').value.trim();
+    state.model = $('select-model').value;
+    const base = $('input-api').value.trim().replace(/\/+$/, '');
+    safeSet('rnt.apiKey', state.apiKey);
+    safeSet('rnt.model', state.model);
+    if (base && base !== state.apiBase) {
+      safeSet('rnt.apiBase', base);
+      state.apiBase = base;
+    }
+    closeSettings();
+    updateStatus();
+    void probe();
   }
 
   function renderChips() {
@@ -236,6 +313,7 @@
       }
       showInputError(err.message);
       showView('input');
+      if (/API Key/i.test(err.message || '')) openSettings();
     }
   }
 
@@ -269,6 +347,8 @@
           clearInterval(generatingTimer);
           showInputError(s.error || '生成失败，请重试');
           showView('input');
+          // 没填 Key 时自动弹出设置，省得用户自己找
+          if (/API Key/i.test(s.error || '')) openSettings();
         }
       } catch (err) {
         if (err.offline) {
@@ -639,13 +719,19 @@
     $('btn-save').addEventListener('click', saveLongImage);
     $('btn-share').addEventListener('click', copyShare);
     document.querySelectorAll('[data-action="restart"]').forEach((el) => el.addEventListener('click', restart));
-    $('btn-connect').addEventListener('click', () => {
-      const current = state.apiBase;
-      const input = window.prompt('输入本地服务地址（例如 http://192.168.1.5:8787）：', current);
-      if (!input) return;
-      const base = input.trim().replace(/\/+$/, '');
-      try { localStorage.setItem('rnt.apiBase', base); } catch (_) {}
-      location.reload();
+    $('btn-connect').addEventListener('click', openSettings);
+    $('btn-settings').addEventListener('click', openSettings);
+    $('btn-status').addEventListener('click', openSettings);
+    $('btn-close-settings').addEventListener('click', closeSettings);
+    $('btn-save-settings').addEventListener('click', saveSettings);
+    $('btn-toggle-key').addEventListener('click', () => {
+      const input = $('input-key');
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      $('btn-toggle-key').textContent = show ? '隐藏' : '显示';
+    });
+    $('settings-modal').addEventListener('click', (e) => {
+      if (e.target === $('settings-modal')) closeSettings();
     });
     window.addEventListener('hashchange', route);
   }
@@ -656,9 +742,11 @@
   void probe();
   route();
 
+  /* 调试/分享：?settings=1 直接打开设置面板 */
+  if (new URLSearchParams(location.search).get('settings') === '1') setTimeout(openSettings, 300);
+
   /* 调试/演示：?autostart=如果当时我……  打开页面即自动跑一次生成 */
-  const autoStart = new URLSearchParams(location.search).get('autostart');
-  if (autoStart) {
+  const autoStart = new URLSearchParams(location.search).get('autostart');  if (autoStart) {
     const text = autoStart.slice(0, 100);
     $('input-text').value = text;
     $('char-count').textContent = `${text.length} / 100`;

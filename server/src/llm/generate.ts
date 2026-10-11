@@ -33,21 +33,31 @@ export class InputRejectedError extends Error {
   }
 }
 
-let client: OpenAI | null = null;
+/**
+ * 取得 LLM 客户端。
+ * 优先级：请求头带的 Key（用户在页面「设置」里填的）> 服务端 .env 的 Key。
+ * 两者都没有时返回 null，由调用方决定是报错还是走演示模式。
+ */
+const clients = new Map<string, OpenAI>();
 
-function getClient(): OpenAI | null {
-  if (config.mockLlm) return null;
-  if (!client) {
-    client = new OpenAI({
-      apiKey: config.stepfun.apiKey,
-      baseURL: config.stepfun.baseUrl,
-      timeout: config.stepfun.timeoutMs,
-      maxRetries: 1,
-    });
-  }
-  return client;
+export function getClient(apiKey?: string): OpenAI | null {
+  if (config.mockLlm && !apiKey) return null;
+  const key = (apiKey ?? config.stepfun.apiKey ?? '').trim();
+  if (!key) return null;
+  const hit = clients.get(key);
+  if (hit) return hit;
+  const created = new OpenAI({
+    apiKey: key,
+    baseURL: config.stepfun.baseUrl,
+    timeout: config.stepfun.timeoutMs,
+    maxRetries: 1,
+  });
+  clients.set(key, created);
+  return created;
 }
 
+export const NO_KEY_MESSAGE =
+  '未配置 API Key：请点右上角「设置」填写 StepFun API Key（只保存在本机浏览器），或在服务端 .env 里配置 STEPFUN_API_KEY';
 function demoResult(input: string, startedAt: number, note: string, attempts: number): GenerateResult {
   const preset = pickDemoCase(input);
   return {
@@ -68,8 +78,9 @@ function demoResult(input: string, startedAt: number, note: string, attempts: nu
 /**
  * 生成一条"去滤镜"的平行人生。
  * 顺序：输入安全 → LLM（JSON Schema 严格模式）→ zod 业务校验 → 重试 → 降级。
+ * @param apiKey 调用方（页面设置）传入的 Key，优先于服务端 .env
  */
-export async function generateStory(input: string): Promise<GenerateResult> {
+export async function generateStory(input: string, apiKey?: string, model?: string): Promise<GenerateResult> {
   const startedAt = Date.now();
 
   const verdict = checkInput(input);
@@ -86,9 +97,10 @@ export async function generateStory(input: string): Promise<GenerateResult> {
     throw new InputRejectedError(verdict.advice ?? '输入不合规，请换一种说法');
   }
 
-  const llm = getClient();
+  const llm = getClient(apiKey);
   if (!llm) {
-    return demoResult(input, startedAt, '未配置 STEPFUN_API_KEY 或 MOCK_LLM=1', 0);
+    if (config.mockLlm) return demoResult(input, startedAt, 'MOCK_LLM=1（演示模式）', 0);
+    throw new Error(NO_KEY_MESSAGE);
   }
 
   const problems: string[] = [];
@@ -109,8 +121,9 @@ export async function generateStory(input: string): Promise<GenerateResult> {
             ];
 
       // reasoning_effort 是 StepFun 的扩展参数（OpenAI SDK 类型未覆盖），需断言
+      const useModel = (model ?? '').trim() || config.stepfun.model;
       const params = {
-        model: config.stepfun.model,
+        model: useModel,
         messages,
         response_format: {
           type: 'json_schema',
@@ -129,7 +142,7 @@ export async function generateStory(input: string): Promise<GenerateResult> {
 
       const reasoningTokens = res.usage?.completion_tokens_details?.reasoning_tokens;
       console.log(
-        `[llm] 第 ${attempt} 次尝试：${Date.now() - startedAt}ms，` +
+        `[llm] ${useModel} 第 ${attempt} 次尝试：${Date.now() - startedAt}ms，` +
           `completion=${res.usage?.completion_tokens ?? '?'}（推理 ${reasoningTokens ?? '?'}）`,
       );
 

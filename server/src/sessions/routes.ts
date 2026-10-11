@@ -21,7 +21,13 @@ apiRouter.use((_req: Request, res: Response, next) => {
 });
 
 apiRouter.get('/health', (_req: Request, res: Response) => {
-  res.json({ ok: true, model: config.mockLlm ? 'mock' : config.stepfun.model, uptime: process.uptime() });
+  res.json({
+    ok: true,
+    model: config.stepfun.model,
+    mockLlm: config.mockLlm,
+    hasServerKey: config.hasServerKey,
+    uptime: process.uptime(),
+  });
 });
 
 /** 演示案例（断网 / 无密钥时前端可离线展示） */
@@ -70,7 +76,10 @@ apiRouter.post('/sessions/:id/generate', (req: Request, res: Response) => {
     res.status(400).json({ error: err instanceof Error ? err.message : '输入不合规' });
     return;
   }
-  startGeneration(session.id, text);
+  // 页面「设置」里填的 Key / 模型优先于服务端 .env
+  const apiKey = req.header('x-stepfun-api-key') || undefined;
+  const model = req.header('x-stepfun-model') || undefined;
+  startGeneration(session.id, text, apiKey, model);
   res.status(202).json(getPublicView(sessionStore.get(session.id)!));
 });
 

@@ -33,6 +33,7 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   padding: 6px 2px 14px;
 }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
 .brand { font-family: var(--font-serif); font-size: 18px; letter-spacing: 0.06em; }
 .brand span { font-family: var(--font-mono); font-size: 11px; color: var(--muted); letter-spacing: 0.12em; margin-left: 6px; }
 
@@ -40,6 +41,46 @@ body {
   font-size: 11px; padding: 4px 10px; border-radius: 999px;
   background: rgba(120, 200, 140, 0.14); color: #86d29a; border: 1px solid rgba(120, 200, 140, 0.35);
 }
+#device-badge { align-self: flex-start; margin-bottom: 4px; }
+
+.status {
+  font-size: 12px; padding: 5px 12px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06); color: var(--muted);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+.status.ok { background: rgba(120, 200, 140, 0.14); color: #86d29a; border-color: rgba(120, 200, 140, 0.35); }
+.status.warn { background: rgba(230, 170, 60, 0.14); color: #f0c674; border-color: rgba(230, 170, 60, 0.4); }
+.icon-btn {
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--paper); font-size: 16px; padding: 5px 10px; border-radius: 10px;
+}
+
+/* 设置弹窗 */
+.modal {
+  position: fixed; inset: 0; z-index: 20;
+  background: rgba(0, 0, 0, 0.62); backdrop-filter: blur(2px);
+  display: flex; align-items: flex-end; justify-content: center; padding: 16px;
+}
+.modal-card {
+  width: 100%; max-width: 460px; max-height: 88vh; overflow: auto;
+  background: #211d17; border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px; padding: 20px 18px 22px;
+}
+.modal-card h2 { margin: 0 0 14px; font-size: 20px; }
+.field-label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+.modal-card input, .modal-card select {
+  width: 100%; font-size: 15px; padding: 11px 12px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06); color: var(--paper);
+  border: 1px solid rgba(255, 255, 255, 0.16); font-family: var(--font-mono);
+}
+.modal-card input:focus, .modal-card select:focus { outline: 2px solid rgba(200, 71, 47, 0.6); }
+.key-row { display: flex; gap: 8px; align-items: stretch; }
+.key-row input { flex: 1; }
+.key-row .ghost { white-space: nowrap; padding: 0 14px; }
+.hint { font-size: 12px; color: var(--muted); line-height: 1.6; margin: 8px 0 0; }
+.hint code { font-family: var(--font-mono); background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.modal-actions .primary { flex: 1; }
 .banner {
   display: flex; flex-direction: column; gap: 6px;
   background: rgba(200, 71, 47, 0.12); border: 1px dashed rgba(200, 71, 47, 0.5);

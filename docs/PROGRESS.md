@@ -136,7 +136,38 @@ npm run browser-check -- "http://127.0.0.1:8787/?autostart=如果我当时没有
 - [x] 接入图片生成的前置工作：画面提示词已由模型生成（AI-02），插画先用预置线描（AI-03 降级）
 - [ ] 接入图片生成模型，替换预置插画（AI-03），保持同一人物设定
 - [x] 前端静态托管（steppage）：https://calm-willow-8970.page.stepcloud.com
+- [x] 前端「设置」面板：填 API Key / 切模型 / 改服务端地址（见第 5 节）
 - [ ] 现场演示：`PUBLIC_WEB_URL` 改为局域网 IP，小票二维码才能被手机扫开
 - [ ] 压测：连续 20 次不断流（PRD 第 9 节）
 - [ ] 语音输入在 iOS Safari 的兼容性确认（WEB-02）
 - [ ] 现场网络对 `stepcloud.com` 的访问确认（本机 TLS 被阻断，未能从开发机验证线上页面）
+
+---
+
+## 5. API Key 改为前端「设置」填写（2026-10-11）
+
+需求：克隆仓库后 `npm start` 就能跑，Key 不写进 `.env`，在页面上填。
+
+实现：
+
+- 前端「设置」面板（右上角 ⚙ / 状态 pill 点击进入，或 `?settings=1` 深链）：
+  API Key（密码框 + 显示切换）、模型选择、服务端地址；存 `localStorage`。
+- 请求头传递：`X-Stepfun-Api-Key`、`X-Stepfun-Model`（CORS 已放行这两个头）。
+- 服务端优先级：**请求头 Key > `.env` Key**；两者都没有时返回明确错误并让前端弹设置面板，
+  **不再静默降级**——只有显式 `MOCK_LLM=1` 才走预生成案例。
+- `/health` 增加 `hasServerKey` / `mockLlm`；右上角状态 pill 显示
+  「已就绪 · 模型」/「未设置 Key」/「未连接服务」/「演示模式」。
+- 首次进入且无任何 Key 时自动弹出设置面板（只提示一次）。
+
+验证：
+
+| 场景 | 结果 |
+| --- | --- |
+| 无 Key，浏览器打开 | 状态「未设置 Key」+ 设置面板自动弹出 + 生成报明确错误 ✅ |
+| 页面设置里填 Key（localStorage 注入模拟） | 28.6s 出票，三幕 + 二维码，状态「已就绪 · step-5-preview」✅ |
+| Key 走请求头（smoke） | 两条路径全过，kind=story（26.3s / 58.7s）✅ |
+| 无 Key（smoke） | 正确走到「未配置 Key」提示分支 ✅ |
+| CORS 预检（Origin 为静态托管域名） | `Access-Control-Allow-Headers` 含 `X-Stepfun-Api-Key` / `X-Stepfun-Model` ✅ |
+
+> 安全提醒：Key 存在浏览器里 = 谁能打开这个页面谁就能用你的 Key，
+> 所以只建议 localhost / 局域网自用；部署到公网时改用服务端 `.env` 并加访问令牌。

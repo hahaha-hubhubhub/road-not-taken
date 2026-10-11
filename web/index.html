@@ -12,12 +12,48 @@
   <div id="app">
     <header class="topbar">
       <div class="brand">没走的路 <span>Road Not Taken</span></div>
-      <div id="device-badge" class="badge hidden">设备已连接</div>
+      <div class="topbar-right">
+        <button id="btn-status" class="status" type="button" title="点击打开设置">检测中…</button>
+        <button id="btn-settings" class="icon-btn" type="button" aria-label="设置">⚙</button>
+      </div>
     </header>
 
     <div id="offline-banner" class="banner hidden">
       <span>未连接本地服务，当前是<strong>演示模式</strong>（预生成案例）</span>
       <button id="btn-connect" class="link" type="button">连接本地服务</button>
+    </div>
+
+    <!-- 设置：API Key / 模型 / 服务端地址 -->
+    <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-card">
+        <h2 id="settings-title">设置</h2>
+
+        <label class="field-label" for="input-key">StepFun API Key</label>
+        <div class="key-row">
+          <input id="input-key" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false" />
+          <button id="btn-toggle-key" class="ghost" type="button">显示</button>
+        </div>
+        <p class="hint">
+          Key 只保存在<strong>这台设备的浏览器</strong>里，生成时随请求发给本地服务端，不会上传到别处。
+          不要把这个页面部署到公网给陌生人用（否则等于把 Key 借给别人）。
+        </p>
+
+        <label class="field-label" for="select-model">模型</label>
+        <select id="select-model">
+          <option value="step-5-preview">step-5-preview · 质量好，约 20-50 秒</option>
+          <option value="step-3.7-flash">step-3.7-flash · 快，约 10-16 秒</option>
+          <option value="step-3.5-flash">step-3.5-flash · 快，约 13-16 秒</option>
+        </select>
+
+        <label class="field-label" for="input-api">服务端地址</label>
+        <input id="input-api" type="text" placeholder="http://localhost:8787" spellcheck="false" />
+        <p class="hint">本机演示用 <code>http://localhost:8787</code>；手机访问填电脑的局域网 IP。</p>
+
+        <div class="modal-actions">
+          <button id="btn-save-settings" class="primary" type="button">保存</button>
+          <button id="btn-close-settings" class="ghost" type="button">取消</button>
+        </div>
+      </div>
     </div>
 
     <main>
@@ -53,6 +89,7 @@
 
       <!-- 3. 等待硬件动作 -->
       <section id="view-waiting" class="view hidden">
+        <div id="device-badge" class="badge hidden">实体设备已连接</div>
         <h2>翻转设备，揭晓第一幕</h2>
         <div id="action-card" class="action-card">
           <div id="action-text" class="action-text">向左翻 1 次</div>

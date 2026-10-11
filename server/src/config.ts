@@ -36,8 +36,10 @@ export const config = {
     reasoningEffort: (process.env.STEPFUN_REASONING_EFFORT ?? 'medium') as 'low' | 'medium' | 'high',
   },
 
-  /** 无密钥或显式开启时，用预生成案例跑通流程（断网/演示保障 OPS-01） */
-  mockLlm: bool(process.env.MOCK_LLM) || !process.env.STEPFUN_API_KEY,
+  /** 显式开启时用预生成案例跑通流程（断网演示）；没有 Key 时不再是静默降级，而是报错提示 */
+  mockLlm: bool(process.env.MOCK_LLM),
+  /** 服务端 .env 是否配置了 Key */
+  hasServerKey: Boolean(process.env.STEPFUN_API_KEY),
 
   /** 对外访问地址，用于生成小票二维码里的分享链接 */
   publicWebUrl: (process.env.PUBLIC_WEB_URL ?? '').replace(/\/+$/, ''),

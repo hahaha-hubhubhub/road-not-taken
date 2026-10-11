@@ -15,6 +15,8 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const DEBUG_PORT = Number(process.env.CDP_PORT ?? 9222);
 const url = process.argv[2] ?? 'http://127.0.0.1:8787/';
 const waitMs = Number(process.argv[3] ?? 90000);
+/** 可选：把 Key 写进页面 localStorage，模拟用户在「设置」里填过 Key */
+const testKey = process.argv[4] || process.env.RNT_TEST_KEY || '';
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -37,6 +39,8 @@ const PROBE = `(() => {
     hasQr: !!document.querySelector('.qr-wrap img'),
     degradedTag: !!document.querySelector('.tag-degraded'),
     footer: (document.querySelector('.receipt-foot') || {}).textContent || '',
+    settingsOpen: !document.getElementById('settings-modal').className.includes('hidden'),
+    statusText: (document.getElementById('btn-status') || {}).textContent || '',
   });
 })()`;
 
@@ -99,6 +103,14 @@ async function main(): Promise<void> {
   };
   const sessionId = attached.sessionId;
   await command('Page.enable', {}, sessionId);
+  if (testKey) {
+    await command(
+      'Page.addScriptToEvaluateOnNewDocument',
+      { source: `try{localStorage.setItem('rnt.apiKey', ${JSON.stringify(testKey)});localStorage.setItem('rnt.settingsSeen','1');}catch(e){}` },
+      sessionId,
+    );
+    console.log('  → 已在页面注入 API Key（localStorage）');
+  }
   await command('Page.navigate', { url }, sessionId);
 
   console.log(`浏览器检查：${url}`);
@@ -137,13 +149,23 @@ async function main(): Promise<void> {
   console.log(`\n=== 结果（${((Date.now() - started) / 1000).toFixed(1)}s，${done ? '已出票' : '超时未完成'}）===`);
   console.log(JSON.stringify(state, null, 2));
 
+  const noKeyFlow = state.settingsOpen === true && /未设置 Key/.test(state.statusText || '');
   const ok =
     state.offlineBanner === false &&
-    state.views.result === 'visible' &&
-    state.actLabels === 3 &&
-    state.degradedTag === false &&
-    state.hasQr === true;
-  console.log(`\n${ok ? '✅ 浏览器端到端通过（真实模型生成 + 二维码）' : '❌ 未通过'}`);
+    (noKeyFlow ||
+      (state.views.result === 'visible' &&
+        state.actLabels === 3 &&
+        state.degradedTag === false &&
+        state.hasQr === true));
+  console.log(
+    `\n${
+      ok
+        ? noKeyFlow
+          ? '✅ 无 Key 时正确弹出设置并提示（预期行为）'
+          : '✅ 浏览器端到端通过（真实模型生成 + 二维码）'
+        : '❌ 未通过'
+    }`,
+  );
 
   await command('Target.closeTarget', { targetId: target.targetId });
   ws.close();

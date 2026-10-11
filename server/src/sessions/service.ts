@@ -102,7 +102,7 @@ export function validateInput(text: unknown): string {
 }
 
 /** 启动生成（异步，前端轮询 session 状态） */
-export function startGeneration(sessionId: string, text: string): void {
+export function startGeneration(sessionId: string, text: string, apiKey?: string, model?: string): void {
   const s = sessionStore.get(sessionId);
   if (!s) return;
   sessionStore.patch(sessionId, {
@@ -114,7 +114,7 @@ export function startGeneration(sessionId: string, text: string): void {
     action: undefined,
   });
 
-  void generateStory(text)
+  void generateStory(text, apiKey, model)
     .then((result) => {
       const action = makeActionCommand();
       sessionStore.patch(sessionId, {
