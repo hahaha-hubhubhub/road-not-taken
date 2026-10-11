@@ -50,13 +50,42 @@
 - 小票字节流 73,661 字节，文本折行/虚线/三张插画/二维码共 8 段位图，ASCII 预览正确。
 - `GET /api/sessions/:id/qr.png` 返回 480×480 PNG；`/img/act-*.png` 等静态资源 200。
 - `tsc --noEmit` 无错误；`node --check web/app.js` 通过。
-- **无头 Chrome 真实浏览器验证**：`?autostart=…` 打开即自动跑完 创建→生成→动作→打印→结果，
-  小票标题/三幕标签/结尾/免责声明全部正确渲染；`?api=<不可达地址>` 时正确进入演示模式
-  （离线横幅 + 预生成案例 + "演示模式"页脚）。
 - 静态托管已部署：`https://calm-willow-8970.page.stepcloud.com`（steppage，web/ 目录原样托管，
   无后端时自动进入演示模式，可用 `?api=http://<局域网IP>:8787` 指向本地服务）。
 
-### 延迟实测（step-5-preview，同一 prompt）
+### 2.1 真实浏览器端到端（CDP，不是 dump-dom）
+
+`--dump-dom` / `--screenshot` 会在页面 load 事件后就地 dump，**等不到异步生成**，
+容易把"降级路径"误判成"主路径通过"。因此新增基于 Chrome DevTools Protocol 的检查脚本：
+
+```bash
+cd server
+npm run browser-check -- "http://127.0.0.1:8787/?autostart=如果我当时没有学计算机" 150000
+```
+
+它会真的开一个 Chrome，等模型生成完，自动点掉「我完成了翻转（演示）」，然后断言：
+无离线横幅、结果视图可见、三幕标签 = 3、二维码存在、无"演示案例"降级标记。
+
+实测通过（多次）："如果我当时没有学计算机" → 46.8s 出票，标题「另一条路：不写代码」；
+"如果我当时回家了家乡工作" → 「另一条路有热饭，也有七大姑」。
+
+### 2.2 修掉的一个关键 bug（记录在案）
+
+**现象**：本地页面显示"未连接本地服务，当前是演示模式"，但服务端 `/api/health` 完全正常。
+
+**根因**：前端 `api()` 用 `fetch(state.apiBase + path)` 拼 URL，而 `apiBase` 是 origin
+（`http://127.0.0.1:8787`），`path` 却写成 `/health`、`/sessions` —— 少了 `/api` 前缀。
+浏览器实际请求 `GET /health` → 404 text/html → 被"必须返回 JSON"的检查判为离线 → 走降级。
+服务端冒烟测试一直通过（curl 走的是正确路径），所以这个 bug 只在浏览器里暴露。
+
+**修复**：`api()` 统一用 `apiUrl()` 拼 `/api` 前缀；同时给 API 响应加 `Cache-Control: no-store`
+（避免轮询接口被缓存 / 304 干扰）。
+
+**教训**：服务端测试全绿 ≠ 前端能连通。浏览器侧验证必须用能等待异步完成的工具
+（本项目的 `npm run browser-check`），并页面上要留下可观测状态
+（`document.body.dataset.offlineReason` / `lastApi`，这次就是靠它定位到 404）。
+
+### 2.3 延迟实测（step-5-preview，同一 prompt）
 
 | 配置 | 耗时 |
 | --- | --- |
@@ -87,6 +116,7 @@
 | 插画先用预置线描图 | PRD §13 允许的降级方案；接入出图后只换 `presetImageBitmap()` |
 | 前端零依赖零构建 | 可直接静态托管，手机扫码即用 |
 | 静态托管用 steppage | 与 StepFun 同平台，一把 Key；无后端时页面自动进入演示模式 |
+| 浏览器验证用 CDP 脚本而不是 `--dump-dom` | dump-dom 等不到异步生成，会把降级路径误判成通过 |
 
 ---
 

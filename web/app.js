@@ -78,12 +78,18 @@
   ];
 
   /* ---------------- 网络 ---------------- */
+  /** 统一拼上 /api 前缀（apiBase 是 origin，如 http://host:8787） */
+  function apiUrl(path) {
+    const p = path.startsWith('/api') ? path : `/api${path}`;
+    return state.apiBase + p;
+  }
+
   async function api(path, options = {}) {
     let res;
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), options.timeout ?? 20000);
-      res = await fetch(state.apiBase + path, {
+      res = await fetch(apiUrl(path), {
         method: options.method || 'GET',
         headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
         body: options.body ? JSON.stringify(options.body) : undefined,
@@ -98,6 +104,7 @@
     const text = await res.text();
     // 静态托管的未知路径可能返回 200 + HTML（SPA 回退），必须识别为非后端
     const contentType = res.headers.get('content-type') || '';
+    document.body.dataset.lastApi = `${path} | ${res.status} | ${contentType.slice(0, 40)}`;
     if (!contentType.includes('json')) {
       const e = new Error('后端未返回 JSON');
       e.offline = true;
@@ -123,13 +130,14 @@
     $('device-badge').classList.toggle('hidden', !state.deviceConnected);
   }
 
-  function enterOffline() {
+  function enterOffline(reason) {
     state.online = false;
     state.deviceConnected = false;
     updateDeviceBadge();
     $('offline-banner').classList.remove('hidden');
     state.demoCases = EMBEDDED_CASES;
     renderChips();
+    if (reason) document.body.dataset.offlineReason = String(reason).slice(0, 200);
   }
 
   /* ---------------- 启动探测 ---------------- */
@@ -156,8 +164,8 @@
         if (Array.isArray(demo.cases) && demo.cases.length) state.demoCases = demo.cases;
       } catch (_) { state.demoCases = EMBEDDED_CASES; }
       if (!state.demoCases.length) state.demoCases = EMBEDDED_CASES;
-    } catch (_) {
-      enterOffline();
+    } catch (err) {
+      enterOffline(err && err.message ? err.message : 'probe failed');
     }
     renderChips();
   }
@@ -190,12 +198,15 @@
 
   function startGeneratingTexts() {
     let i = 0;
+    const t0 = Date.now();
     $('generating-text').textContent = GENERATING_TEXTS[0];
     clearInterval(generatingTimer);
     generatingTimer = setInterval(() => {
       i = (i + 1) % GENERATING_TEXTS.length;
       $('generating-text').textContent = GENERATING_TEXTS[i];
-    }, 2600);
+      const sec = Math.round((Date.now() - t0) / 1000);
+      $('generating-sub').textContent = `正在调用 step-5-preview 生成三幕故事…已等待 ${sec} 秒`;
+    }, 1000);
   }
 
   function stopPoll() { clearInterval(state.poll); state.poll = null; }

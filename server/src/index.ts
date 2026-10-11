@@ -31,6 +31,17 @@ app.use((req, res, next) => {
 
 app.use('/api', apiRouter);
 
+/* 请求日志（排查前端联调用） */
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    console.log(
+      `[http] ${req.method} ${req.originalUrl} → ${res.statusCode} ${res.getHeader('content-type') ?? ''} (${Date.now() - start}ms)`,
+    );
+  });
+  next();
+});
+
 if (fs.existsSync(WEB_DIR)) {
   app.use(
     express.static(WEB_DIR, {

@@ -14,6 +14,12 @@ import {
 
 export const apiRouter = Router();
 
+/** API 响应不缓存（轮询接口 + 避免 304 无 content-type 干扰前端探测） */
+apiRouter.use((_req: Request, res: Response, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
 apiRouter.get('/health', (_req: Request, res: Response) => {
   res.json({ ok: true, model: config.mockLlm ? 'mock' : config.stepfun.model, uptime: process.uptime() });
 });

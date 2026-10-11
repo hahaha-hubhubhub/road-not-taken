@@ -250,6 +250,10 @@ PNG(384x384 线描) → 灰度 + 双线性缩放到 384 点宽 → Floyd–Stein
 
 调试工具：`npm run img2bit -- <png> --ascii`、`npm run receipt-preview -- <bin>`。
 
+浏览器联调：`npm run browser-check -- "<url>?autostart=如果当时我……" 150000`
+（基于 Chrome DevTools Protocol，会等生成完成后自动点掉演示按钮并断言结果；
+不要用 `--dump-dom`，它等不到异步生成）。
+
 **已知限制**：插画目前用 `assets/presets/` 预置线描（PRD §13 允许的降级方案）；
 接入图片模型后，把 `presetImageBitmap()` 换成按 session 出图即可，其余链路不变。
 
