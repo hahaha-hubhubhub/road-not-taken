@@ -81,10 +81,12 @@ apiRouter.post('/sessions/:id/generate', (req: Request, res: Response) => {
     res.status(400).json({ error: err instanceof Error ? err.message : '输入不合规' });
     return;
   }
-  // 页面「设置」里填的 Key / 模型优先于服务端 .env
+  // 页面「设置」里填的 Key / 模型 / Base URL / 生图模型优先于服务端 .env
   const apiKey = req.header('x-stepfun-api-key') || undefined;
   const model = req.header('x-stepfun-model') || undefined;
-  startGeneration(session.id, text, apiKey, model);
+  const baseUrl = req.header('x-stepfun-base-url') || undefined;
+  const imageModel = req.header('x-stepfun-image-model') || undefined;
+  startGeneration(session.id, text, apiKey, model, baseUrl, imageModel);
   res.status(202).json(getPublicView(sessionStore.get(session.id)!));
 });
 
@@ -199,13 +201,13 @@ apiRouter.post('/sessions/:id/flip-progress', (req: Request, res: Response) => {
  * 设备已接单时禁用——那意味着有真机在场，翻转应由手机传感器通过
  * flip-progress 上报，不能整段假装完成。
  */
-apiRouter.post('/sessions/:id/simulate-action', (req: Request, res: Response) => {
+apiRouter.post('/sessions/:id/simulate-action', async (req: Request, res: Response) => {
   const session = sessionStore.get(req.params.id);
   if (!session) {
     res.status(404).json({ error: 'session 不存在或已过期' });
     return;
   }
-  const ok = completeAction(session.id, 'demo');
+  const ok = await completeAction(session.id, 'demo');
   if (!ok) {
     res.status(409).json({ error: '当前状态不能执行动作', state: session.state });
     return;

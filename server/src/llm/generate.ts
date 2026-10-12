@@ -35,29 +35,32 @@ export class InputRejectedError extends Error {
 
 /**
  * 取得 LLM 客户端。
- * 优先级：请求头带的 Key（用户在页面「设置」里填的）> 服务端 .env 的 Key。
+ * 优先级：请求头带的 Key / Base URL（页面「设置」里填的）> 服务端 .env。
  * 两者都没有时返回 null，由调用方决定是报错还是走演示模式。
  */
 const clients = new Map<string, OpenAI>();
 
-export function getClient(apiKey?: string): OpenAI | null {
+export function getClient(apiKey?: string, baseUrl?: string): OpenAI | null {
   if (config.mockLlm) return null; // 演示开关始终优先，避免页面/测试携带 Key 时误调用模型
   const key = (apiKey ?? config.stepfun.apiKey ?? '').trim();
   if (!key) return null;
-  const hit = clients.get(key);
+  const base = (baseUrl ?? config.stepfun.baseUrl ?? '').trim().replace(/\/+$/, '') || 'https://api.stepfun.com/v1';
+  const cacheKey = `${base}::${key}`;
+  const hit = clients.get(cacheKey);
   if (hit) return hit;
   const created = new OpenAI({
     apiKey: key,
-    baseURL: config.stepfun.baseUrl,
+    baseURL: base,
     timeout: config.stepfun.timeoutMs,
     maxRetries: 1,
   });
-  clients.set(key, created);
+  clients.set(cacheKey, created);
   return created;
 }
 
 export const NO_KEY_MESSAGE =
   '未配置 API Key：请点右上角「设置」填写 StepFun API Key（只保存在本机浏览器），或在服务端 .env 里配置 STEPFUN_API_KEY';
+
 function demoResult(input: string, startedAt: number, note: string, attempts: number): GenerateResult {
   const preset = pickDemoCase(input);
   return {
@@ -80,7 +83,7 @@ function demoResult(input: string, startedAt: number, note: string, attempts: nu
  * 顺序：输入安全 → LLM（JSON Schema 严格模式）→ zod 业务校验 → 重试 → 降级。
  * @param apiKey 调用方（页面设置）传入的 Key，优先于服务端 .env
  */
-export async function generateStory(input: string, apiKey?: string, model?: string): Promise<GenerateResult> {
+export async function generateStory(input: string, apiKey?: string, model?: string, baseUrl?: string): Promise<GenerateResult> {
   const startedAt = Date.now();
 
   const verdict = checkInput(input);
@@ -97,7 +100,7 @@ export async function generateStory(input: string, apiKey?: string, model?: stri
     throw new InputRejectedError(verdict.advice ?? '输入不合规，请换一种说法');
   }
 
-  const llm = getClient(apiKey);
+  const llm = getClient(apiKey, baseUrl);
   if (!llm) {
     if (config.mockLlm) return demoResult(input, startedAt, 'MOCK_LLM=1（演示模式）', 0);
     throw new Error(NO_KEY_MESSAGE);

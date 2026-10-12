@@ -18,7 +18,6 @@ export interface PublicAct {
   /** MVP 使用预置插画，图片生成接入后替换为按 session 出图 */
   imageUrl: string;
 }
-
 export interface PublicSessionView {
   sessionId: string;
   state: SessionState;
@@ -113,7 +112,14 @@ export function validateInput(text: unknown): string {
 }
 
 /** 启动生成（异步，前端轮询 session 状态） */
-export function startGeneration(sessionId: string, text: string, apiKey?: string, model?: string): void {
+export function startGeneration(
+  sessionId: string,
+  text: string,
+  apiKey?: string,
+  model?: string,
+  baseUrl?: string,
+  imageModel?: string,
+): void {
   const s = sessionStore.get(sessionId);
   if (!s) return;
   sessionStore.patch(sessionId, {
@@ -127,7 +133,7 @@ export function startGeneration(sessionId: string, text: string, apiKey?: string
     action: undefined,
   });
 
-  void generateStory(text, apiKey, model)
+  void generateStory(text, apiKey, model, baseUrl)
     .then((result) => {
       if (sessionStore.get(sessionId)?.state !== 'generating') return; // 已取消时丢弃异步结果
       // 危机分支只在手机端呈现安抚，不下发设备、打印或出胶囊。
@@ -156,7 +162,7 @@ export function startGeneration(sessionId: string, text: string, apiKey?: string
       // 生图与状态机并行，不阻塞进入 await_action。
       // 用户在翻转设备那几秒里图片刚好在后台生成完，感知不到额外等待；
       // 若图没赶上，前端继续显示预置图，不影响取票。
-      void kickOffImages(sessionId, result.story);
+      void kickOffImages(sessionId, result.story, imageModel);
 
       const updated = sessionStore.get(sessionId);
       if (updated) bus.emit('session:ready', updated);
@@ -174,14 +180,14 @@ export function startGeneration(sessionId: string, text: string, apiKey?: string
  * 与主流程解耦：失败只把 imageStatus 置 failed，前端继续用预置图，
  * 绝不让生图问题影响取票。已取消的 session 直接丢弃结果。
  */
-async function kickOffImages(sessionId: string, story: Story): Promise<void> {
+async function kickOffImages(sessionId: string, story: Story, imageModel?: string): Promise<void> {
   const prompts = story.scenes.map((s: { image_prompt: string }) => s.image_prompt).filter(Boolean);
   if (prompts.length < 3) {
     sessionStore.patch(sessionId, { imageStatus: 'failed' });
     return;
   }
   try {
-    const result = await generateSceneImages(sessionId, prompts);
+    const result = await generateSceneImages(sessionId, prompts, imageModel);
     if (!sessionStore.get(sessionId)) return; // 会话已过期
     sessionStore.patch(sessionId, {
       imageStatus: result.ok ? 'ready' : 'failed',
@@ -198,11 +204,6 @@ async function kickOffImages(sessionId: string, story: Story): Promise<void> {
   }
 }
 
-/**
- * 动作完成 → 进入打印。
- * via=device 由真实硬件上报；via=demo 由手机完成翻转（B 路）或无硬件演示。
- * 是否授权打印取决于当前是否有打印服务在线，与 via 无关。
- */
 /**
  * 动作完成 → 进入打印。
  *
@@ -304,7 +305,7 @@ export function wireBus(): void {
   });
 
   bus.on('device:action_complete', (sessionId) => {
-    completeAction(sessionId, 'device');
+    void completeAction(sessionId, 'device');
   });
 
   bus.on('device:print_done', (sessionId) => {

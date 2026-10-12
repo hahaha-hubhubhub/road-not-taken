@@ -156,6 +156,18 @@ cd server && npm run smoke
 （`未配置 API Key：请点右上角「设置」…`），前端自动弹出设置面板，**不再静默降级**——
 只有显式 `MOCK_LLM=1` 才走预生成案例。
 
+请求头一览（页面「设置」里改什么就带什么头）：
+
+| 请求头 | 设置项 |
+| --- | --- |
+| `X-Stepfun-Api-Key` | API Key |
+| `X-Stepfun-Model` | 文本模型 |
+| `X-Stepfun-Base-Url` | 模型服务 Base URL（换服务商 / 中转站） |
+| `X-Stepfun-Image-Model` | 生图模型 |
+
+> 换中转站只改 Base URL 即可（例如 `https://models-proxy.stepfun-inc.com`，内网域名需先连 VPN）。
+> 如果请求 404，试着在末尾加 `/v1`——不同中转的挂载路径不一样。
+
 安全提示：Key 存在浏览器里意味着"谁能打开这个页面谁就能用你的 Key"，
 所以只建议 localhost / 局域网自用；部署到公网时应改用服务端 `.env` 并加访问令牌。
 
@@ -249,6 +261,32 @@ PRD AI-05 目标 30 秒：`medium` 下基本达标；若现场网络差，用
   （`kind=care`，含心理援助热线），**不生成黑色幽默**；
 - 输出安全：命中"死亡/重病/残疾/贫困当笑点"等模式视为失败，重试或降级；
 - 所有结果的免责声明由服务端统一覆盖为"这是模型生成的虚构故事，不是人生预测。"
+
+---
+
+### 6.4 生图（AI-03）
+
+```text
+三幕故事就绪
+   │  立即并发生图（不和故事串行）
+   ▼
+images.generate × 3 并发（同一把 Key / Base URL，模型可单独配）
+   │  成功 → PNG Buffer 存 session（内存，24h 清除）
+   │  失败 → null，回退 assets/presets 预置插画
+   ▼
+用户做翻转动作的这几秒正好用来出图
+   ▼
+动作完成 → 最多再等 STEPFUN_IMAGE_WAIT_MS（默认 15s）→ 打印
+```
+
+- 接口：`GET /api/sessions/:id/scene/:n.png`（生成图优先，响应头 `X-Image-Source: generated|preset`）
+- 打印：`pngToBitmap()`（缩放 + Floyd–Steinberg 抖动 + 1-bit 打包）→ 与文本同一套 ESC/POS 排版
+- 前端：轮询到 `imageReady` 后把「生成中」占位换成真图；出票后仍会继续轮询补图
+- 兜底：`STEPFUN_IMAGE_ENABLED=0` 可整个关掉生图；任何一张失败都不阻塞出票
+- 提示词：模型输出的 `image_prompt` 已带"黑白线描/高对比/低细节"，服务端再追加一段英文风格后缀兜底
+
+**待验证**：`gpt-image-2` 这个模型 ID 是按你给的信息填的默认值，接上 VPN 后需用
+`GET {base}/models` 核对真实 ID（页面设置里可随时改，不用重启服务）。
 
 ---
 

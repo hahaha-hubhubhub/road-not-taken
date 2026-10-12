@@ -45,6 +45,14 @@
           <option value="step-3.5-flash">step-3.5-flash · 快，约 13-16 秒</option>
         </select>
 
+        <label class="field-label" for="input-baseurl">模型服务 Base URL（换服务商时改这里）</label>
+        <input id="input-baseurl" type="text" placeholder="https://api.stepfun.com/v1" spellcheck="false" />
+        <p class="hint">默认走 StepFun 官方；黑客松中转 / 其他 OpenAI 兼容服务填它给的地址（要含 <code>/v1</code>）。</p>
+
+        <label class="field-label" for="input-image-model">生图模型（小票上的三张图）</label>
+        <input id="input-image-model" type="text" placeholder="gpt-image-2" spellcheck="false" />
+        <p class="hint">生图与文本共用同一把 Key / Base URL；生图失败会自动回退预置插画，不影响出票。</p>
+
         <label class="field-label" for="input-api">服务端地址</label>
         <input id="input-api" type="text" placeholder="http://localhost:8787" spellcheck="false" />
         <p class="hint">本机演示用 <code>http://localhost:8787</code>；手机访问填电脑的局域网 IP。</p>

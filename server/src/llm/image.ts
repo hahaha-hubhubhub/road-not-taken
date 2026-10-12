@@ -64,7 +64,11 @@ function saveImage(sessionId: string, index: number, b64: string): string {
 }
 
 /** 单张生成。超时/失败都抛错，由调用方决定是否回落。 */
-async function generateOne(prompt: string, timeoutMs: number): Promise<{ b64: string; mimeType: string }> {
+async function generateOne(
+  prompt: string,
+  timeoutMs: number,
+  model: string,
+): Promise<{ b64: string; mimeType: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -76,7 +80,7 @@ async function generateOne(prompt: string, timeoutMs: number): Promise<{ b64: st
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: config.image.model,
+        model,
         prompt: `${prompt}\n\n${STYLE_SUFFIX}`,
         n: 1,
         size: '1024x1024',
@@ -122,6 +126,8 @@ async function generateOne(prompt: string, timeoutMs: number): Promise<{ b64: st
 export async function generateSceneImages(
   sessionId: string,
   prompts: string[],
+  /** 页面「设置」里临时指定的生图模型，优先于 .env 的 IMAGE_MODEL */
+  modelOverride?: string,
 ): Promise<GenerateImagesResult> {
   if (!config.image.enabled) {
     return { ok: false, images: [], missing: [1, 2, 3], error: '图片生成未配置（IMAGE_API_KEY 为空）' };
@@ -131,10 +137,13 @@ export async function generateSceneImages(
   }
 
   const started = Date.now();
+  const model = (modelOverride ?? '').trim() || config.image.model;
 
   // 三张并行：串行约 75s，并行约 34s（实测）
   const settled = await Promise.allSettled(
-    prompts.slice(0, 3).map((p, i) => generateOne(p, config.image.timeoutMs).then((r) => ({ ...r, index: i + 1 }))),
+    prompts
+      .slice(0, 3)
+      .map((p, i) => generateOne(p, config.image.timeoutMs, model).then((r) => ({ ...r, index: i + 1 }))),
   );
 
   const images: SceneImage[] = [];

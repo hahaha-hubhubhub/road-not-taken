@@ -172,10 +172,44 @@ npm run browser-check -- "http://127.0.0.1:8787/?autostart=如果我当时没有
 > 安全提醒：Key 存在浏览器里 = 谁能打开这个页面谁就能用你的 Key，
 > 所以只建议 localhost / 局域网自用；部署到公网时改用服务端 `.env` 并加访问令牌。
 
-
 ## 6. 2026-10-12 产品拷打与胶囊软件增量
 
 - 按 SpaceZephyr/pm-skills `4c486c7` 的总控→需求体检→多角色评审→优先级→低样本验证链路产出 [产品拷打记录](PRODUCT_REVIEW.md) 与 [胶囊 PRD](CAPSULE_PRD.md)。**实体公开演示评审不通过**：卷纸/出仓安全、设备鉴权与隐私未验收。
 - 软件：胶囊能力握手、文字内芯 ESC/POS、打印后单独封装状态/授权/出仓门控，危机输入不下发设备，取消时异步生成不复活；模拟设备默认不落盘、HTTP 日志不记录查询参数；模拟设备可跑完整状态。旧设备按小票模式继续。
 - 验证：`npm run build`、`node --check web/app.js`、`MOCK_LLM=1` 下 `npm run capsule-check`（提前/无效出仓消息、危机路径、同名连接越权、卡纸与迟到 ACK）以及 `npm run smoke` 两条路径、真实 Chrome 的 `RNT_ALLOW_DEMO=1 npm run browser-check`（模拟封装阶段）已通过。**这不是硬件测试，也不是模型内容安全评测**。
 - 待办：台架 40 次（空白/文字各 20）与故障注入、真机互锁、纸长/卷径/切刀验证；内容可用性访谈与受控体验；鉴权/访问控制/用户同意/匿名指标；正式展台前复评。文档 §2 旧延迟为 2026-10-11 的历史数据，勿冒充本次测试。
+
+---
+
+---
+
+## 7. 接入黑客松中转 + 生图（2026-10-12，代码已接，待 VPN 验证）
+
+拿到的东西：Key（heikesong-23 组，5 人共享 ¥2000/人；完整值只写在 .env，勿外传）、
+Base URL `https://models-proxy.stepfun-inc.com`（**内网域名，必须连 VPN**，
+开发机 DNS 解析不到，所以本轮只写代码、不实测）。
+
+已完成：
+
+| 项 | 状态 |
+| --- | --- |
+| Base URL 可配置（页面设置 + `X-Stepfun-Base-Url` 请求头） | ✅ |
+| `.env` 写入 Key / Base URL / 生图模型（gitignore，未提交） | ✅ |
+| 生图模块 `llm/images.ts`：三幕并发、单张超时、失败回退预置插画 | ✅ |
+| 生图接入 session 流程：故事就绪即并发生图，打印前最多等 15s | ✅ |
+| `GET /api/sessions/:id/scene/:n.png`（生成图优先 + `X-Image-Source` 头） | ✅ |
+| 小票使用生成图（复用现有抖动 / 1-bit / ESC/POS 管线） | ✅ |
+| 前端：生图模型输入框、「生成中」占位、出票后继续轮询补图 | ✅ |
+
+已验证（连不上中转的情况下，验证的是降级链路）：
+
+- 文本调用失败 → 1 秒内降级到预生成案例（`kind=demo`），冒烟测试全过
+- 三张生图全部 `Connection error` → 回退预置插画，`X-Image-Source: preset`，出票不卡
+- `scene/9.png` → 404；`tsc --noEmit` / `node --check` 通过
+
+**待接上 VPN 后做**：
+
+1. `GET {base}/models` 核对 step-5-preview 与生图模型的真实 ID
+2. 验证中转是否支持 `response_format: json_schema` 严格模式；不支持就降级 JSON Mode（链路已备）
+3. 跑一次真实出图，看画风是否适合 58mm 热敏打印（必要时调 `STYLE_SUFFIX`）
+4. 确认 base URL 要不要补 `/v1`

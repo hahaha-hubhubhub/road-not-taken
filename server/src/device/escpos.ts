@@ -349,6 +349,8 @@ export interface ReceiptOptions {
   ending: string;
   disclaimer: string;
   shareUrl: string;
+  /** 有则用生成图（已转 1-bit），null 的幕回退到预置插画 */
+  bitmaps?: (Bitmap | null)[];
 }
 
 /** 生成整张小票的 ESC/POS 字节流 */

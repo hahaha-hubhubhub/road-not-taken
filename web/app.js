@@ -32,6 +32,8 @@
     apiBase: resolveApiBase(),
     apiKey: safeGet('rnt.apiKey') || '',
     model: safeGet('rnt.model') || '',
+    baseUrl: safeGet('rnt.baseUrl') || '',
+    imageModel: safeGet('rnt.imageModel') || '',
     sessionId: null,
     poll: null,
     online: false,
@@ -108,6 +110,8 @@
           ...(options.body ? { 'Content-Type': 'application/json' } : {}),
           ...(state.apiKey ? { 'X-Stepfun-Api-Key': state.apiKey } : {}),
           ...(state.model ? { 'X-Stepfun-Model': state.model } : {}),
+          ...(state.baseUrl ? { 'X-Stepfun-Base-Url': state.baseUrl } : {}),
+          ...(state.imageModel ? { 'X-Stepfun-Image-Model': state.imageModel } : {}),
         },
         body: options.body ? JSON.stringify(options.body) : undefined,
         signal: controller.signal,
@@ -229,6 +233,8 @@
   function openSettings() {
     $('input-key').value = state.apiKey;
     $('input-api').value = state.apiBase;
+    $('input-baseurl').value = state.baseUrl;
+    $('input-image-model').value = state.imageModel;
     $('select-model').value = state.model || state.serverModel || 'step-5-preview';
     $('settings-modal').classList.remove('hidden');
   }
@@ -240,9 +246,13 @@
   function saveSettings() {
     state.apiKey = $('input-key').value.trim();
     state.model = $('select-model').value;
+    state.baseUrl = $('input-baseurl').value.trim().replace(/\/+$/, '');
+    state.imageModel = $('input-image-model').value.trim();
     const base = $('input-api').value.trim().replace(/\/+$/, '');
     safeSet('rnt.apiKey', state.apiKey);
     safeSet('rnt.model', state.model);
+    safeSet('rnt.baseUrl', state.baseUrl);
+    safeSet('rnt.imageModel', state.imageModel);
     if (base && base !== state.apiBase) {
       safeSet('rnt.apiBase', base);
       state.apiBase = base;
@@ -571,6 +581,8 @@
 
   /* ---------------- 结果渲染 ---------------- */
   const relImg = (url) => String(url || '').replace(/^\//, '');
+  /** 生图接口在我们的服务端上，需要拼 apiBase；演示案例用前端相对路径 */
+  const imgSrc = (url) => (String(url || '').startsWith('/api/') ? state.apiBase + url : relImg(url));
 
   /**
    * 补图轮询：done 时生图可能还在跑（三张并行约 34s，用户翻转只要几秒）。
@@ -761,7 +773,7 @@
         ctx.fillText(`第${CN_NUM[i] || i + 1}幕 · ${a.name}`, PAD, y);
         y += 40;
 
-        const img = await loadImage(new URL(relImg(a.imageUrl), location.href).href);
+        const img = await loadImage(new URL(imgSrc(a.imageUrl), location.href).href);
         if (img) {
           const iw = maxTextWidth;
           const ih = Math.round((img.height / img.width) * iw);
