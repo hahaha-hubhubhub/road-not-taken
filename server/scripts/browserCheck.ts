@@ -17,6 +17,7 @@ const url = process.argv[2] ?? 'http://127.0.0.1:8787/';
 const waitMs = Number(process.argv[3] ?? 90000);
 /** 可选：把 Key 写进页面 localStorage，模拟用户在「设置」里填过 Key */
 const testKey = process.argv[4] || process.env.RNT_TEST_KEY || '';
+const allowDemo = process.env.RNT_ALLOW_DEMO === '1';
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -27,7 +28,7 @@ const PROBE = `(() => {
     return el.className.includes('hidden') ? 'hidden' : 'visible';
   };
   return JSON.stringify({
-    views: { input: vis('view-input'), generating: vis('view-generating'), waiting: vis('view-waiting'), printing: vis('view-printing'), result: vis('view-result') },
+    views: { input: vis('view-input'), generating: vis('view-generating'), waiting: vis('view-waiting'), printing: vis('view-printing'), encapsulating: vis('view-encapsulating'), result: vis('view-result') },
     offlineBanner: !document.getElementById('offline-banner').className.includes('hidden'),
     offlineReason: document.body.dataset.offlineReason || '',
     lastApi: document.body.dataset.lastApi || '',
@@ -41,6 +42,7 @@ const PROBE = `(() => {
     footer: (document.querySelector('.receipt-foot') || {}).textContent || '',
     settingsOpen: !document.getElementById('settings-modal').className.includes('hidden'),
     statusText: (document.getElementById('btn-status') || {}).textContent || '',
+    deliveryNote: (document.getElementById('delivery-note') || {}).textContent || '',
   });
 })()`;
 
@@ -118,6 +120,7 @@ async function main(): Promise<void> {
   let last = '';
   let done = false;
   let clickedSimulate = false;
+  let seenEncapsulating = false;
 
   while (Date.now() - started < waitMs) {
     await sleep(1500);
@@ -128,6 +131,7 @@ async function main(): Promise<void> {
     if (!raw) continue;
     const state = JSON.parse(raw) as Record<string, any>;
     last = raw;
+    if (state.views.encapsulating === 'visible') seenEncapsulating = true;
 
     if (state.views.result === 'visible') {
       done = true;
@@ -155,14 +159,16 @@ async function main(): Promise<void> {
     (noKeyFlow ||
       (state.views.result === 'visible' &&
         state.actLabels === 3 &&
-        state.degradedTag === false &&
+        (allowDemo ? state.degradedTag === true && seenEncapsulating &&
+          /模拟体验/.test(state.deliveryNote) : state.degradedTag === false) &&
         state.hasQr === true));
   console.log(
     `\n${
       ok
         ? noKeyFlow
           ? '✅ 无 Key 时正确弹出设置并提示（预期行为）'
-          : '✅ 浏览器端到端通过（真实模型生成 + 二维码）'
+          : allowDemo ? '✅ 浏览器模拟胶囊流程通过（含封装阶段）'
+            : '✅ 浏览器端到端通过（真实模型生成 + 二维码）'
         : '❌ 未通过'
     }`,
   );

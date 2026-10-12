@@ -2,9 +2,11 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 文档版本 | v0.2 |
-| 对应 PRD | v0.1 |
-| 状态 | 阶段一（闭环优先）已完成并通过本地验证；硬件未采购，接口契约已定义并由模拟设备验证 |
+| 文档版本 | v0.3（v0.2 小票内容保留；胶囊增量见 §10） |
+| 对应 PRD | 小票历史 v0.1；胶囊增量 v0.2 |
+| 状态 | 小票软件闭环已验证；胶囊协议/文字内芯只在模拟器验证，机械未采购/验收 |
+
+> **先读**：[胶囊版 PRD](CAPSULE_PRD.md)。本文 §1–9 是 v0.2 小票系统的历史说明，其中 `print_done → done`、逐格打印等说法仅适用于旧设备；当前增量以 §10 为准。
 
 ---
 
@@ -62,7 +64,7 @@ road-not-taken/
 │   │       ├── protocol.ts   设备通信协议（类型即契约）
 │   │       ├── gateway.ts    WebSocket 网关 + 打印门控
 │   │       ├── escpos.ts     PNG → 1-bit → ESC/POS、二维码、小票排版
-│   │       ├── mockDevice.ts 模拟设备（CLI）
+│   │       ├── mockDevice.ts 模拟设备（CLI，默认不落盘）
 │   │       └── img2bit.ts    图片转位图调试工具
 │   └── scripts/              smoke（端到端测试）、tryLlm（prompt 调试）、
 │                             makePresetImages（生成预置插画）、previewReceipt
@@ -298,3 +300,12 @@ PNG(384x384 线描) → 灰度 + 双线性缩放到 384 点宽 → Floyd–Stein
 | 硬件采购与固件 | ⏳ 待采购（见 PROGRESS.md 清单） |
 | 语音直接对硬件说话（HW-06）、墨水屏（HW-07） | ⏳ P2，未开始 |
 | 多实例/持久化 | ⏳ 当前 session 在内存中，单机演示足够 |
+
+
+## 10. 胶囊协议增量（v0.3；仅模拟验证）
+
+- `hello.capabilities.capsule === true` 才选 `delivery=capsule`，否则 `receipt`；手机无设备时 `demo`。胶囊任务使用 `buildCapsuleInsertBuffer`，只含三幕文字/短句/编号/不可吞食警示，无大图与二维码；完整内容在手机端。二维码结果分享机制是旧方案，公开展出前仍需显式同意。
+- 状态：`created → generating → await_action → printing → encapsulating → done`；危机输入 `generating → done(kind=care)`，**不向设备下发**；故障/取消进入 `error`。胶囊设备 `print_done` 只授权 `capsule_authorized`，收到 `capsule_dispensed(paperCaptured=true,capsuleClosed=true,outletClear=true)` 才完成。旧小票设备 `print_done → done`。
+- 设备错误增加 `feed_jam / capsule_empty / lid_open / outlet_blocked / timeout`；断线或封装超时（默认 `CAPSULE_TIMEOUT_MS=30000`）使会话 error，软件发送 cancel。真机**必须自行实现**独立盖板互锁、急停、断线/超时电机断电，不能把 WebSocket 的 `cancel` 当唯一安全措施。
+- `simulate-action` 只在会话未分配真机时可用，演示依次显示 `printing` / `encapsulating` / `done`，每段耗时 `SIMULATED_PRINT_MS`；这个计时器**不是**出仓传感器。`npm run capsule-check` 覆盖提前完成、缺传感器、同名连接越权、危机不出胶囊、卡纸迟到 ACK；`npm run smoke` 跑模拟设备端到端。
+- 本次只修了基本的会话归属与错误状态门控。**未完成的上线阻断**：设备握手无身份鉴权，HTTP API 无访问控制/分享显式同意，WebSocket 仍信任设备上报，单机内存队列不支持多用户排队，真实传感器/切刀/电机零验证。仅限本机受控联调，不能直接暴露公网或宣称真机安全。

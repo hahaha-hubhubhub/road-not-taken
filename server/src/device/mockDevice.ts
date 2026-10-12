@@ -4,9 +4,8 @@
  *   npm run mock-device -- --port 8787
  *   npm run mock-device -- --interactive   # 每轮动作等待回车
  *
- * 行为：hello → 收 task（保存 ESC/POS 字节流 + ASCII 预览）→ 收 action_required
- *       → 上报 action_progress / action_complete → 等 print_authorized
- *       → print_started / print_done
+ * 行为：hello(capsule) → 收 task（默认不持久化内容；--save-receipt 才保存调试文件）
+ *       → 动作上报 → 打印授权/完成 → 封装授权 → 模拟传感器确认出仓。
  */
 
 import fs from 'node:fs';
@@ -20,17 +19,19 @@ interface Args {
   port: number;
   deviceId: string;
   interactive: boolean;
+  saveReceipt: boolean;
 }
 
 function parseArgs(): Args {
   const argv = process.argv.slice(2);
-  const args: Args = { host: '127.0.0.1', port: Number(process.env.PORT ?? 8787), deviceId: 'mock-01', interactive: false };
+  const args: Args = { host: '127.0.0.1', port: Number(process.env.PORT ?? 8787), deviceId: 'mock-01', interactive: false, saveReceipt: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--host') args.host = argv[++i] ?? args.host;
     else if (a === '--port') args.port = Number(argv[++i] ?? args.port);
     else if (a === '--id') args.deviceId = argv[++i] ?? args.deviceId;
     else if (a === '--interactive') args.interactive = true;
+    else if (a === '--save-receipt') args.saveReceipt = true;
   }
   return args;
 }
@@ -52,7 +53,7 @@ function send(msg: unknown): void {
 
 ws.on('open', () => {
   console.log(`[mock] 已连接 ws://${args.host}:${args.port}/device（deviceId=${args.deviceId}）`);
-  send({ type: 'hello', deviceId: args.deviceId, firmware: 'mock-0.1.0' });
+  send({ type: 'hello', deviceId: args.deviceId, firmware: 'mock-0.2.0', capabilities: { capsule: true } });
 });
 
 ws.on('message', async (raw) => {
@@ -71,21 +72,17 @@ ws.on('message', async (raw) => {
     case 'task': {
       currentSession = msg.sessionId;
       console.log(`\n[mock] ===== 收到打印任务 ${msg.sessionId} =====`);
-      console.log(`[mock] 标题：${msg.title}`);
-      for (const s of msg.scenes ?? []) {
-        console.log(`[mock]   第${s.index}幕·${s.act}：${s.caption}`);
-        console.log(`[mock]     画面：${s.imagePrompt}`);
-      }
-      console.log(`[mock] 结尾：${msg.ending}`);
-      console.log(`[mock] 声明：${msg.disclaimer}`);
+      console.log(`[mock] 交付模式：${msg.delivery}；默认不打印用户内容到终端，也不落盘`);
 
       const buffer = Buffer.from(msg.receiptBase64, 'base64');
-      fs.mkdirSync(OUT_DIR, { recursive: true });
-      const file = path.join(OUT_DIR, `receipt-${msg.sessionId}.bin`);
-      fs.writeFileSync(file, buffer);
-      console.log(`[mock] ESC/POS 字节流 ${buffer.length} 字节 → ${file}`);
+      if (args.saveReceipt) {
+        fs.mkdirSync(OUT_DIR, { recursive: true });
+        const file = path.join(OUT_DIR, `receipt-${msg.sessionId}.bin`);
+        fs.writeFileSync(file, buffer, { mode: 0o600 });
+        console.log(`[mock] 调试文件（需手动删除）${buffer.length} 字节 → ${file}`);
+      }
 
-      const arts = asciiArtFromEscPos(buffer, 2, 4);
+      const arts = args.saveReceipt ? asciiArtFromEscPos(buffer, 2, 4) : [];
       arts.slice(0, 3).forEach((art, i) => {
         console.log(`[mock] --- 位图预览 ${i + 1}/${arts.length}（.#=黑点，每 2 列/4 行采样）---`);
         console.log(art.split('\n').slice(0, 24).join('\n'));
@@ -115,7 +112,19 @@ ws.on('message', async (raw) => {
       send({ type: 'print_started', sessionId: msg.sessionId, deviceId: args.deviceId });
       await sleep(800);
       send({ type: 'print_done', sessionId: msg.sessionId, deviceId: args.deviceId });
-      console.log('[mock] 打印完成，小票可以取走了\n');
+      console.log('[mock] 打印完成，等待封装授权…');
+      break;
+    }
+
+    case 'capsule_authorized': {
+      if (msg.sessionId !== currentSession) break;
+      send({ type: 'state', deviceId: args.deviceId, state: 'encapsulating', sessionId: msg.sessionId });
+      console.log('[mock] 模拟卷纸、封壳和出仓（非真实硬件）…');
+      await sleep(1500);
+      send({ type: 'capsule_dispensed', sessionId: msg.sessionId, deviceId: args.deviceId,
+        paperCaptured: true, capsuleClosed: true, outletClear: true });
+      send({ type: 'state', deviceId: args.deviceId, state: 'idle' });
+      console.log('[mock] 模拟胶囊已出仓\n');
       break;
     }
 

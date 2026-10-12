@@ -15,11 +15,12 @@ export type DeviceStateName =
   | 'generating'
   | 'await_action'
   | 'printing'
+  | 'encapsulating'
   | 'done'
   | 'error'
   | 'offline';
 
-export type DeviceErrorCode = 'paper_out' | 'paper_jam' | 'imu' | 'printer' | 'unauthorized_print' | 'unknown';
+export type DeviceErrorCode = 'paper_out' | 'paper_jam' | 'imu' | 'printer' | 'unauthorized_print' | 'feed_jam' | 'capsule_empty' | 'lid_open' | 'outlet_blocked' | 'timeout' | 'unknown';
 
 export interface PrintScenePayload {
   index: number;
@@ -38,8 +39,10 @@ export interface TaskMessage {
   disclaimer: string;
   shareUrl: string;
   widthPx: number;
-  /** 已排版好的 ESC/POS 字节流（含位图与二维码），设备直接写入打印机 */
+  /** 已排版的 ESC/POS 字节流；receipt 含插图/二维码，capsule 是纯文字内芯 */
   receiptBase64: string;
+  /** 胶囊模式仅适用于设备明确声明支持封装的情况 */
+  delivery: 'capsule' | 'receipt';
 }
 
 export interface ActionRequiredMessage {
@@ -54,6 +57,11 @@ export interface PrintAuthorizedMessage {
   sessionId: string;
 }
 
+export interface CapsuleAuthorizedMessage {
+  type: 'capsule_authorized';
+  sessionId: string;
+}
+
 export interface CancelMessage {
   type: 'cancel';
   sessionId: string;
@@ -64,6 +72,7 @@ export type ServerToDevice =
   | TaskMessage
   | ActionRequiredMessage
   | PrintAuthorizedMessage
+  | CapsuleAuthorizedMessage
   | CancelMessage
   | { type: 'welcome'; deviceId: string; serverTime: number }
   | { type: 'pong'; serverTime: number };
@@ -72,6 +81,7 @@ export interface HelloMessage {
   type: 'hello';
   deviceId: string;
   firmware?: string;
+  capabilities?: { capsule?: boolean };
 }
 
 export interface DeviceStateMessage {
@@ -107,6 +117,16 @@ export interface PrintDoneMessage {
   deviceId: string;
 }
 
+export interface CapsuleDispensedMessage {
+  type: 'capsule_dispensed';
+  sessionId: string;
+  deviceId: string;
+  /** 设备传感器确认，而非定时器推断；三项必须都为 true */
+  paperCaptured: boolean;
+  capsuleClosed: boolean;
+  outletClear: boolean;
+}
+
 export interface DeviceErrorMessage {
   type: 'error';
   deviceId: string;
@@ -129,6 +149,7 @@ export type DeviceToServer =
   | ActionCompleteMessage
   | PrintStartedMessage
   | PrintDoneMessage
+  | CapsuleDispensedMessage
   | DeviceErrorMessage
   | ButtonMessage
   | { type: 'ping' };

@@ -48,6 +48,7 @@ export const config = {
   sessionTtlMs: num(process.env.SESSION_TTL_HOURS, 24) * 3600 * 1000,
   /** 无硬件时，模拟一次打印的耗时 */
   simulatedPrintMs: num(process.env.SIMULATED_PRINT_MS, 2600),
+  capsuleTimeoutMs: num(process.env.CAPSULE_TIMEOUT_MS, 30000),
 
   /** 58mm 热敏打印机：384 点/行 */
   print: { widthPx: 384 },

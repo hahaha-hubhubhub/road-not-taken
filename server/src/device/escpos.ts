@@ -272,6 +272,24 @@ export function buildReceiptBuffer(opts: ReceiptOptions): Buffer {
   return Buffer.concat(parts);
 }
 
+/** 胶囊内芯：文字版三幕，不打印大幅插画与二维码，缩短纸带。
+ * 仍需机械样机验证纸长、卷径、切刀与出仓；不是标准可吞服胶囊。
+ */
+export function buildCapsuleInsertBuffer(opts: ReceiptOptions & { sessionId: string }): Buffer {
+  const parts: Buffer[] = [ESC.init(), ESC.align(1), ESC.bold(true), textToEscPos('后悔毒药 · 展示道具'), ESC.bold(false)];
+  for (const line of wrapText(opts.title, 24)) parts.push(textToEscPos(line));
+  parts.push(textToEscPos(`编号 ${opts.sessionId.slice(0, 8)}`), feedLines(1), ESC.align(0));
+  const labels = ['滤镜', '代价', '意外'];
+  opts.scenes.forEach((scene, i) => {
+    parts.push(ESC.bold(true), textToEscPos(`${i + 1} ${labels[i] ?? '片段'}`), ESC.bold(false));
+    for (const line of wrapText(scene.caption, 24)) parts.push(textToEscPos(line));
+  });
+  parts.push(feedLines(1), ESC.align(1), ESC.bold(true));
+  for (const line of wrapText(opts.ending, 24)) parts.push(textToEscPos(line));
+  parts.push(ESC.bold(false), textToEscPos('虚构想象 · 非人生预测'), textToEscPos('展示道具 · 请勿吞食'), feedLines(2));
+  return Buffer.concat(parts);
+}
+
 /** 调试用：位图转 ASCII art（模拟设备/测试输出），stepX/stepY 为采样步长 */
 export function bitmapToAscii(bmp: Bitmap, stepX = 1, stepY = 1): string {
   const rows: string[] = [];

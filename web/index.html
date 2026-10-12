@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>没走的路 · Road Not Taken</title>
-  <meta name="description" content="说一条你没走过的路，模型生成它不那么美好的真实版本。" />
+  <title>没走的路 · 后悔毒药</title>
+  <meta name="description" content="给没走的路拆掉滤镜，把虚构的平行人生装进一粒不能吃的故事胶囊。" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" href="img/act-1.png" />
 </head>
@@ -34,7 +34,7 @@
           <button id="btn-toggle-key" class="ghost" type="button">显示</button>
         </div>
         <p class="hint">
-          Key 只保存在<strong>这台设备的浏览器</strong>里，生成时随请求发给本地服务端，不会上传到别处。
+          Key 保存在<strong>这台设备的浏览器</strong>里；生成时会发给你所配置的服务端，服务端再用于调用模型供应商。
           不要把这个页面部署到公网给陌生人用（否则等于把 Key 借给别人）。
         </p>
 
@@ -59,9 +59,10 @@
     <main>
       <!-- 1. 输入 -->
       <section id="view-input" class="view">
-        <h1>说一条你没走过的路</h1>
-        <p class="sub">模型不继续美化它，只补上那条路上的通勤、账单、争吵和意外。</p>
+        <h1>给遗憾开一粒“毒药”</h1>
+        <p class="sub">写下没走的路，AI 先承认它的好，再补上看不见的日常代价。这只是虚构，不是预测。</p>
 
+        <p class="muted small">输入会发送至所配置的服务端及模型供应商。请不要填写姓名、联系方式或他人的隐私；结果目前仍可能通过链接访问，不适合公开敏感经历。</p>
         <div class="field">
           <textarea id="input-text" rows="3" maxlength="100" placeholder="如果当时我……"></textarea>
           <div class="row between">
@@ -71,7 +72,7 @@
         </div>
 
         <p id="input-error" class="error hidden" role="alert"></p>
-        <button id="btn-generate" class="primary" type="button">生成另一条路</button>
+        <button id="btn-generate" class="primary" type="button">拆掉滤镜，开始配药</button>
 
         <div class="chips">
           <div class="muted small">没有想法？点一个试试：</div>
@@ -90,12 +91,12 @@
       <!-- 3. 等待硬件动作 -->
       <section id="view-waiting" class="view hidden">
         <div id="device-badge" class="badge hidden">实体设备已连接</div>
-        <h2>翻转设备，揭晓第一幕</h2>
+        <h2>翻转设备，解锁这段平行人生</h2>
         <div id="action-card" class="action-card">
           <div id="action-text" class="action-text">向左翻 1 次</div>
           <div id="action-dots" class="dots"></div>
         </div>
-        <p id="waiting-hint" class="sub">按屏幕提示翻转设备；每完成一段动作，打印机吐出一幕。</p>
+        <p id="waiting-hint" class="sub">完成翻转后才开始打印；纸带随后将被卷进展示胶囊。</p>
         <button id="btn-simulate" class="primary hidden" type="button">我完成了翻转（演示）</button>
         <p id="waiting-note" class="muted small"></p>
         <button class="ghost" type="button" data-action="restart">重新输入</button>
@@ -105,11 +106,19 @@
       <section id="view-printing" class="view hidden">
         <div class="printer" aria-hidden="true"><div class="paper"></div></div>
         <h2 id="printing-text">打印机正在工作……</h2>
-        <p class="sub">小票只能向前输出，就像选择无法回退。</p>
+        <p id="printing-sub" class="sub">先打印三幕纸带，完成后才开始封装。</p>
       </section>
 
-      <!-- 5. 结果 -->
+      <!-- 5. 胶囊封装（真实设备须传感器确认；无硬件仅模拟） -->
+      <section id="view-encapsulating" class="view hidden" aria-live="polite">
+        <div class="capsule-graphic" aria-hidden="true"><span>没走的路</span></div>
+        <h2>正在把平行人生卷进胶囊…</h2>
+        <p class="sub">请勿伸手进入出仓口。展示道具，不可吞食。</p>
+      </section>
+
+      <!-- 6. 结果 -->
       <section id="view-result" class="view hidden">
+        <p id="delivery-note" class="sub"></p>
         <div id="receipt" class="receipt"></div>
         <div class="actions">
           <button id="btn-save" class="primary" type="button">保存长图</button>
@@ -119,7 +128,7 @@
       </section>
     </main>
 
-    <footer>模型生成的虚构故事，不是人生预测 · Road Not Taken</footer>
+    <footer>虚构想象，非人生预测 · 胶囊为展示道具，请勿吞食</footer>
   </div>
 
   <script src="app.js"></script>

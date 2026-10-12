@@ -227,3 +227,16 @@ footer {
   #app { padding-top: 28px; }
   h1 { font-size: 30px; }
 }
+
+/* 胶囊阶段：动画仅代表软件进度，不代表机械已安全出仓 */
+.capsule-graphic {
+  width: 150px; height: 62px; margin: 40px auto 20px; border-radius: 999px;
+  display: grid; place-items: center; transform: rotate(-18deg);
+  border: 3px solid var(--paper);
+  background: linear-gradient(90deg, var(--accent) 0 50%, var(--paper) 50% 100%);
+  box-shadow: 0 16px 40px rgba(0,0,0,.32);
+  animation: capsule-roll 1.8s ease-in-out infinite alternate;
+}
+.capsule-graphic span { color: var(--ink); font-size: 11px; background: var(--paper); padding: 1px 4px; border-radius: 4px; }
+@keyframes capsule-roll { to { transform: rotate(18deg) translateX(18px); } }
+@media (prefers-reduced-motion: reduce) { .capsule-graphic { animation: none; } }

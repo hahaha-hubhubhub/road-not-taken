@@ -26,14 +26,15 @@ const FORBIDDEN_PATTERNS = [
 
 export function checkInput(text: string): SafetyVerdict {
   const t = text.trim();
-  if (t.length < 4) {
-    return { safe: false, reason: 'too_short', advice: '请多写一点，至少 4 个字' };
-  }
-  if (t.length > 200) {
-    return { safe: false, reason: 'too_short', advice: '请精简到 200 字以内' };
-  }
+  // 危机路由必须先于普通长度校验；“想死”也应看到安抚，而非“请多写一点”。
   if (CRISIS_PATTERNS.some((re) => re.test(t))) {
     return { safe: false, reason: 'crisis' };
+  }
+  if (t.length < 10) {
+    return { safe: false, reason: 'too_short', advice: '请多写一点，至少 10 个字' };
+  }
+  if (t.length > 100) {
+    return { safe: false, reason: 'too_short', advice: '请精简到 100 字以内' };
   }
   if (FORBIDDEN_PATTERNS.some((re) => re.test(t))) {
     return { safe: false, reason: 'forbidden' };
@@ -64,7 +65,7 @@ export const CARE_RESPONSE = {
       image_prompt: '黑白线描：两把面对面的空椅子，中间一张小圆桌',
     },
     {
-      caption: '如果你愿意，可以和一个信任的人聊聊，或拨打心理援助热线 400-161-9995。',
+      caption: '如果你愿意，可以联系信任的人或当地心理援助热线；若有即刻危险，请联系当地急救服务。',
       image_prompt: '黑白线描：一部老式电话机，听筒放在一旁，听筒线绕成心形',
     },
   ],

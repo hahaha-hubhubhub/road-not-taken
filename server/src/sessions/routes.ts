@@ -69,6 +69,10 @@ apiRouter.post('/sessions/:id/generate', (req: Request, res: Response) => {
     res.status(404).json({ error: 'session 不存在或已过期' });
     return;
   }
+  if (session.state !== 'created') {
+    res.status(409).json({ error: '本次体验已提交，请创建新 session', state: session.state });
+    return;
+  }
   let text: string;
   try {
     text = validateInput(req.body?.text);
@@ -96,7 +100,7 @@ apiRouter.get('/sessions/:id', (req: Request, res: Response) => {
 /** 分享用二维码（小票上的同一张，PNG，480px） */
 apiRouter.get('/sessions/:id/qr.png', async (req: Request, res: Response) => {
   const session = sessionStore.get(req.params.id);
-  if (!session) {
+  if (!session || session.kind === 'care') {
     res.status(404).end();
     return;
   }

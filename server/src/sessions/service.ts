@@ -33,6 +33,7 @@ export interface PublicSessionView {
   shareUrl?: string;
   generateMs?: number;
   simulated?: boolean;
+  delivery?: 'capsule' | 'receipt' | 'demo';
   createdAt: number;
   updatedAt: number;
   doneAt?: number;
@@ -46,9 +47,10 @@ export function getPublicView(s: SessionRecord): PublicSessionView {
     state: s.state,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
-    deviceConnected: gateway.hasDevice(),
+    deviceConnected: s.deviceId ? gateway.isDeviceOnline(s.deviceId, s.deviceConnectionKey)
+      : s.state === 'await_action' ? false : gateway.hasDevice(),
   };
-  if (s.input) view.input = s.input;
+  // 原始遗憾不放入公开结果 / 二维码返回值。
   if (s.story) {
     view.title = s.story.title;
     view.acts = s.story.scenes.map((scene, i) => ({
@@ -76,6 +78,7 @@ export function getPublicView(s: SessionRecord): PublicSessionView {
   if (s.error) view.error = s.error;
   if (s.shareUrl) view.shareUrl = s.shareUrl;
   if (s.generateMs !== undefined) view.generateMs = s.generateMs;
+  if (s.delivery) view.delivery = s.delivery;
   if (s.simulated) view.simulated = true;
   if (s.doneAt) view.doneAt = s.doneAt;
   return view;
@@ -110,12 +113,23 @@ export function startGeneration(sessionId: string, text: string, apiKey?: string
     input: text,
     error: undefined,
     authorizedPrint: false,
+    authorizedCapsule: false,
+    delivery: undefined,
     story: undefined,
     action: undefined,
   });
 
   void generateStory(text, apiKey, model)
     .then((result) => {
+      if (sessionStore.get(sessionId)?.state !== 'generating') return; // 已取消时丢弃异步结果
+      // 危机分支只在手机端呈现安抚，不下发设备、打印或出胶囊。
+      if (result.kind === 'care') {
+        sessionStore.patch(sessionId, {
+          state: 'done', story: result.story, kind: 'care', input: undefined, doneAt: Date.now(),
+          generateMs: result.durationMs,
+        });
+        return;
+      }
       const action = makeActionCommand();
       sessionStore.patch(sessionId, {
         state: 'await_action',
@@ -132,6 +146,7 @@ export function startGeneration(sessionId: string, text: string, apiKey?: string
       if (updated) bus.emit('session:ready', updated);
     })
     .catch((err: unknown) => {
+      if (sessionStore.get(sessionId)?.state !== 'generating') return;
       const message = err instanceof Error ? err.message : String(err);
       sessionStore.patch(sessionId, { state: 'error', error: message });
     });
@@ -141,19 +156,25 @@ export function startGeneration(sessionId: string, text: string, apiKey?: string
 export function completeAction(sessionId: string, via: 'device' | 'demo'): boolean {
   const s = sessionStore.get(sessionId);
   if (!s || s.state !== 'await_action') return false;
+  if (via === 'demo' && s.deviceId) return false;
+  if (via === 'device' && (!s.deviceId || !gateway.isDeviceOnline(s.deviceId, s.deviceConnectionKey))) return false;
 
   sessionStore.patch(sessionId, {
     state: 'printing',
     authorizedPrint: true,
     printStartedAt: Date.now(),
     simulated: via === 'demo',
+    delivery: via === 'demo' ? 'demo' : s.delivery,
     action: s.action ? { ...s.action, done: s.action.moves.length } : undefined,
   });
 
   if (via === 'device') {
     gateway.authorizePrint(sessionId);
   } else {
-    setTimeout(() => finishPrint(sessionId), config.simulatedPrintMs);
+    setTimeout(() => {
+      finishPrint(sessionId);
+      setTimeout(() => finishCapsule(sessionId), config.simulatedPrintMs);
+    }, config.simulatedPrintMs);
   }
   return true;
 }
@@ -161,6 +182,25 @@ export function completeAction(sessionId: string, via: 'device' | 'demo'): boole
 export function finishPrint(sessionId: string): void {
   const s = sessionStore.get(sessionId);
   if (!s || s.state !== 'printing') return;
+  if (s.delivery === 'capsule' || s.delivery === 'demo') {
+    sessionStore.patch(sessionId, { state: 'encapsulating', authorizedCapsule: true });
+    if (s.delivery === 'capsule') {
+      gateway.authorizeCapsule(sessionId);
+      setTimeout(() => {
+        if (sessionStore.get(sessionId)?.state === 'encapsulating') {
+          gateway.cancel(sessionId, '封装超时，停止电机');
+          sessionStore.patch(sessionId, { state: 'error', error: '封装超时，请工作人员处理，勿伸手取纸' });
+        }
+      }, config.capsuleTimeoutMs);
+    }
+  } else {
+    sessionStore.patch(sessionId, { state: 'done', doneAt: Date.now() });
+  }
+}
+
+export function finishCapsule(sessionId: string): void {
+  const s = sessionStore.get(sessionId);
+  if (!s || s.state !== 'encapsulating' || !s.authorizedCapsule) return;
   sessionStore.patch(sessionId, { state: 'done', doneAt: Date.now() });
 }
 
@@ -187,6 +227,10 @@ export function wireBus(): void {
     finishPrint(sessionId);
   });
 
+  bus.on('device:capsule_dispensed', (sessionId) => {
+    finishCapsule(sessionId);
+  });
+
   bus.on('device:error', ({ sessionId, code, message }) => {
     if (!sessionId) return;
     if (code === 'unauthorized_print') return; // 已拦截，仅记录
@@ -195,10 +239,19 @@ export function wireBus(): void {
         ? '打印机缺纸，请工作人员处理'
         : code === 'paper_jam'
           ? '打印机卡纸，请工作人员处理'
-          : `设备错误：${message ?? code}`;
+          : code === 'feed_jam' || code === 'capsule_empty' || code === 'lid_open' || code === 'outlet_blocked'
+            ? '胶囊机构未完成，请工作人员处理，勿将手伸入出仓口'
+            : `设备错误：${message ?? code}`;
+    const s = sessionStore.get(sessionId);
+    if (!s || s.state === 'done' || s.state === 'error') return;
+    gateway.cancel(sessionId, text);
     sessionStore.patch(sessionId, { state: 'error', error: text });
   });
 
-  bus.on('device:connected', () => undefined);
-  bus.on('device:disconnected', () => undefined);
+  bus.on('device:disconnected', (deviceId, connectionKey) => {
+    // 不把物理任务静默改成演示；断连时装置端也必须自行停止电机。
+    for (const s of sessionStore.activeForDevice(deviceId, connectionKey)) {
+      sessionStore.patch(s.id, { state: 'error', error: '设备断线，请工作人员检查纸带和胶囊机构' });
+    }
+  });
 }

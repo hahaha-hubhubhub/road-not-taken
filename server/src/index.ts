@@ -36,7 +36,7 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     console.log(
-      `[http] ${req.method} ${req.originalUrl} → ${res.statusCode} ${res.getHeader('content-type') ?? ''} (${Date.now() - start}ms)`,
+      `[http] ${req.method} ${req.path} → ${res.statusCode} ${res.getHeader('content-type') ?? ''} (${Date.now() - start}ms)`,
     );
   });
   next();

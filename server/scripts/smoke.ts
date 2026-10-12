@@ -36,6 +36,7 @@ function readKeyFromEnvFile(): string {
 const API_KEY = (process.env.STEPFUN_API_KEY ?? '').trim() || readKeyFromEnvFile();
 
 let failures = 0;
+let mockLlm = false;
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 function check(name: string, ok: boolean, detail = ''): void {
@@ -76,6 +77,7 @@ interface SessionView {
   kind?: string;
   generateMs?: number;
   deviceConnected?: boolean;
+  delivery?: 'capsule' | 'receipt' | 'demo';
 }
 
 async function waitState(id: string, targets: string[], timeoutMs: number): Promise<SessionView> {
@@ -126,7 +128,7 @@ async function runFlow(label: string, expectDevice: boolean): Promise<void> {
   }
 
   check(
-    API_KEY ? '请求头带 Key 生成三幕结果' : '生成三幕结果',
+    mockLlm ? '显式 MOCK_LLM 演示案例（三幕）' : API_KEY ? '请求头带 Key 生成三幕结果' : '生成三幕结果',
     (ready.acts?.length ?? 0) === 3,
     `kind=${ready.kind} ${ready.generateMs ?? 0}ms${ready.degraded ? '（已降级）' : ''}`,
   );
@@ -140,11 +142,12 @@ async function runFlow(label: string, expectDevice: boolean): Promise<void> {
 
   if (expectDevice) {
     const done = await waitState(created.sessionId, ['done'], 40000);
-    check('模拟设备驱动到完成', done.state === 'done', `action=${done.action?.done}/${done.action?.total}`);
+    check('模拟设备驱动到胶囊出仓完成', done.state === 'done' && done.delivery === 'capsule',
+      `delivery=${done.delivery} action=${done.action?.done}/${done.action?.total}`);
   } else {
     await post(`/sessions/${created.sessionId}/simulate-action`);
     const done = await waitState(created.sessionId, ['done'], 30000);
-    check('演示模式模拟打印到完成', done.state === 'done');
+    check('演示模式模拟打印+封装到完成', done.state === 'done' && done.delivery === 'demo');
   }
 
   const result = await get<SessionView>(`/sessions/${created.sessionId}/result`);
@@ -154,11 +157,12 @@ async function runFlow(label: string, expectDevice: boolean): Promise<void> {
 async function main(): Promise<void> {
   console.log(`冒烟测试目标：${BASE}`);
   console.log(`Key 来源：${API_KEY ? '环境变量 / .env（将随请求头发送）' : '未配置（预期走到"未配置 Key"提示）'}`);
-  const health = await get<{ ok: boolean; model: string }>('/health').catch((err) => {
+  const health = await get<{ ok: boolean; model: string; mockLlm: boolean }>('/health').catch((err) => {
     console.error(`❌ 服务端未启动：${err.message}\n请先运行 npm start（server 目录）`);
     process.exit(2);
   });
-  console.log(`服务端正常，模型：${health.model}`);
+  mockLlm = health.mockLlm;
+  console.log(`服务端正常，模型：${mockLlm ? 'MOCK_LLM 演示' : health.model}`);
 
   await runFlow('路径 A：无硬件（演示模式）', false);
 

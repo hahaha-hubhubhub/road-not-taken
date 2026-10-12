@@ -9,10 +9,11 @@ export interface BusEvents {
   'device:action_complete': [sessionId: string, deviceId: string];
   /** 硬件上报打印完成 */
   'device:print_done': [sessionId: string, deviceId: string];
+  'device:capsule_dispensed': [sessionId: string, deviceId: string];
   /** 硬件上报错误（缺纸/卡纸/IMU 等） */
   'device:error': [payload: { sessionId?: string; deviceId: string; code: string; message?: string }];
   'device:connected': [deviceId: string];
-  'device:disconnected': [deviceId: string];
+  'device:disconnected': [deviceId: string, connectionKey: string];
 }
 
 type Handler<K extends keyof BusEvents> = (...args: BusEvents[K]) => void;

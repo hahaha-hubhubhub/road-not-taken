@@ -41,7 +41,7 @@ export class InputRejectedError extends Error {
 const clients = new Map<string, OpenAI>();
 
 export function getClient(apiKey?: string): OpenAI | null {
-  if (config.mockLlm && !apiKey) return null;
+  if (config.mockLlm) return null; // 演示开关始终优先，避免页面/测试携带 Key 时误调用模型
   const key = (apiKey ?? config.stepfun.apiKey ?? '').trim();
   if (!key) return null;
   const hit = clients.get(key);

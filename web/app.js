@@ -133,7 +133,7 @@
   }
 
   /* ---------------- 视图切换 ---------------- */
-  const VIEWS = ['input', 'generating', 'waiting', 'printing', 'result'];
+  const VIEWS = ['input', 'generating', 'waiting', 'printing', 'encapsulating', 'result'];
   function showView(name) {
     VIEWS.forEach((v) => $(`view-${v}`).classList.toggle('hidden', v !== name));
     window.scrollTo(0, 0);
@@ -290,11 +290,15 @@
 
   async function start(rawText) {
     const text = (rawText || '').trim();
-    if (text.length < 10) return showInputError('再多写一点：至少 10 个字，比如"如果当时我留在了北京"');
+    const isCrisis = /自杀|自残|自伤|轻生|不想活|活不下去|想死|割腕|跳楼|kill myself|suicide|self[-\s]?harm/i.test(text);
+    if (!isCrisis && text.length < 10) return showInputError('再多写一点：至少 10 个字，比如"如果当时我留在了北京"');
     if (text.length > 100) return showInputError('太长了，请精简到 100 字以内');
     hideInputError();
 
-    if (!state.online) return showDemoResult(pickEmbedded(text));
+    if (!state.online) {
+      if (isCrisis) return showInputError('当前未连接服务，不能安全处理这段内容；请联系信任的人或当地专业援助。');
+      return showDemoResult(pickEmbedded(text));
+    }
 
     state.sessionId = null;
     state.lastState = null;
@@ -309,6 +313,11 @@
       clearInterval(generatingTimer);
       if (err.offline) {
         enterOffline();
+        if (isCrisis) {
+          showInputError('连接中断，无法安全处理这段内容；请联系信任的人或当地专业援助。');
+          showView('input');
+          return;
+        }
         return showDemoResult(pickEmbedded(text));
       }
       showInputError(err.message);
@@ -334,7 +343,11 @@
           updateActionDots(s);
         } else if (s.state === 'printing' && state.lastState !== 'printing') {
           state.lastState = 'printing';
-          showPrinting();
+          showPrinting(s);
+        } else if (s.state === 'encapsulating' && state.lastState !== 'encapsulating') {
+          state.lastState = 'encapsulating';
+          clearTimeout(state.printingTimer);
+          showView('encapsulating');
         } else if (s.state === 'done' && state.lastState !== 'done') {
           state.lastState = 'done';
           stopPoll();
@@ -368,10 +381,12 @@
     const note = $('waiting-note');
     if (s.deviceConnected) {
       simulate.classList.add('hidden');
-      hint.textContent = '按提示翻转设备；每完成一段动作，热敏打印机就吐出一幕。';
+      hint.textContent = s.delivery === 'capsule'
+        ? '完成翻转后打印文字纸带，再由设备卷入展示胶囊。请勿伸手进入出仓口。'
+        : '完成翻转后打印三幕小票；这台设备暂不支持胶囊封装。';
     } else {
       simulate.classList.remove('hidden');
-      hint.textContent = '现场暂未连接实体设备。翻转动作是揭晓仪式的核心——点下面的按钮模拟完成一次。';
+      hint.textContent = '现场暂未连接实体设备。点击按钮模拟打印与胶囊封装；不会得到实物。';
     }
     note.textContent = s.degraded ? '模型超时或未连接，本次使用预生成演示案例。' : '';
     showView('waiting');
@@ -390,12 +405,15 @@
     });
   }
 
-  function showPrinting() {
+  function showPrinting(s) {
     showView('printing');
-    $('printing-text').textContent = '打印机正在工作……';
+    $('printing-sub').textContent = s?.delivery === 'receipt'
+      ? '当前设备只打印完整小票，不进行胶囊封装。'
+      : '先打印三幕纸带，完成后才开始封装。';
+    $('printing-text').textContent = '正在打印三幕故事……';
     clearTimeout(state.printingTimer);
     state.printingTimer = setTimeout(() => {
-      $('printing-text').textContent = '小票正在送出，请拿好……';
+      $('printing-text').textContent = '纸带正在送出，完成后才开始封装……';
     }, 2200);
   }
 
@@ -403,6 +421,12 @@
   const relImg = (url) => String(url || '').replace(/^\//, '');
 
   function renderResult(s) {
+    const note = $('delivery-note');
+    note.textContent = s.kind === 'care' ? '这一次先不讲笑话，也不出胶囊。请照顾好自己。'
+      : s.delivery === 'capsule' ? '设备已回报胶囊出仓；展示道具，不能吞食。'
+      : s.delivery === 'receipt' ? '当前设备只支持小票，尚未完成胶囊封装。'
+      : '模拟体验：没有真实打印或胶囊出仓。';
+    $('btn-share').classList.toggle('hidden', s.kind === 'care');
     const d = new Date(s.doneAt || s.updatedAt || Date.now());
     const meta = `RNT-${String(s.sessionId || '').slice(0, 6).toUpperCase()} · ${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     const acts = (s.acts || [])
@@ -416,10 +440,11 @@
       )
       .join('<div class="dashed"></div>');
 
-    const qr = s.sessionId
+    const qr = s.sessionId && s.kind !== 'care'
       ? `<div class="qr-wrap"><img id="qr-img" crossorigin="anonymous" src="${state.apiBase}/api/sessions/${s.sessionId}/qr.png" alt="二维码" /></div>
          <div class="receipt-foot">扫码查看这条没走的路</div>`
-      : '<div class="receipt-foot">演示模式 · 未连接本地服务</div>';
+      : s.kind === 'care' ? '<div class="receipt-foot">只在此页面展示 · 不出实体胶囊</div>'
+        : '<div class="receipt-foot">演示模式 · 未连接本地服务</div>';
 
     $('receipt').innerHTML = `
       <div class="receipt-title">${escapeHtml(s.title || '另一条路')}${s.degraded ? '<span class="tag-degraded">演示案例</span>' : ''}</div>
@@ -709,7 +734,8 @@
       $('btn-simulate').disabled = true;
       try {
         await api(`/sessions/${state.sessionId}/simulate-action`, { method: 'POST', body: {} });
-        showPrinting();
+        state.lastState = 'printing';
+        showPrinting({ delivery: 'demo' });
       } catch (err) {
         showInputError(err.message);
       } finally {

@@ -1,17 +1,20 @@
 import type { Server } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
 import { bus } from '../bus.js';
 import { SHARE_BASE } from '../config.js';
 import { sessionStore, type SessionRecord } from '../sessions/store.js';
-import { buildReceiptBuffer } from './escpos.js';
+import { buildCapsuleInsertBuffer, buildReceiptBuffer } from './escpos.js';
 import type { DeviceToServer, ServerToDevice } from './protocol.js';
 
 interface DeviceConn {
   deviceId: string;
+  connectionKey: string;
   ws: WebSocket;
   lastSeen: number;
   state: string;
   firmware?: string;
+  capsuleCapable: boolean;
 }
 
 /**
@@ -49,7 +52,7 @@ export class DeviceGateway {
   }
 
   private register(ws: WebSocket, deviceId: string): void {
-    const conn: DeviceConn = { deviceId, ws, lastSeen: Date.now(), state: 'idle' };
+    const conn: DeviceConn = { deviceId, connectionKey: randomUUID(), ws, lastSeen: Date.now(), state: 'idle', capsuleCapable: false };
     this.conns.set(ws, conn);
     console.log(`[device] 已连接：${deviceId}（当前 ${this.conns.size} 台）`);
     bus.emit('device:connected', deviceId);
@@ -57,10 +60,14 @@ export class DeviceGateway {
     ws.on('message', (raw) => this.handleMessage(conn, raw.toString()));
     ws.on('close', () => {
       this.conns.delete(ws);
+      bus.emit('device:disconnected', conn.deviceId, conn.connectionKey);
       console.log(`[device] 已断开：${deviceId}（当前 ${this.conns.size} 台）`);
-      bus.emit('device:disconnected', deviceId);
     });
     ws.on('error', () => ws.close());
+  }
+
+  private owns(conn: DeviceConn, sessionId: string): boolean {
+    return sessionStore.get(sessionId)?.deviceConnectionKey === conn.connectionKey;
   }
 
   private send(conn: DeviceConn, msg: ServerToDevice): void {
@@ -81,8 +88,9 @@ export class DeviceGateway {
 
     switch (msg.type) {
       case 'hello': {
-        conn.deviceId = msg.deviceId || conn.deviceId;
+        // 握手中的任意 ID 不能改写 URL 注册的身份；真正设备鉴权仍待实现。
         conn.firmware = msg.firmware;
+        conn.capsuleCapable = msg.capabilities?.capsule === true;
         this.send(conn, { type: 'welcome', deviceId: conn.deviceId, serverTime: Date.now() });
         break;
       }
@@ -92,14 +100,12 @@ export class DeviceGateway {
       }
       case 'state': {
         conn.state = msg.state;
-        if (msg.sessionId) {
-          sessionStore.patch(msg.sessionId, { deviceId: conn.deviceId });
-        }
+        // 状态消息只用于设备监控，不能改写 session 归属。
         break;
       }
       case 'action_progress': {
         const s = sessionStore.get(msg.sessionId);
-        if (s?.action) {
+        if (s?.state === 'await_action' && this.owns(conn, msg.sessionId) && s.action) {
           sessionStore.patch(msg.sessionId, {
             action: { ...s.action, done: Math.max(0, Math.min(msg.done, s.action.moves.length)) },
           });
@@ -108,12 +114,15 @@ export class DeviceGateway {
       }
       case 'action_complete': {
         console.log(`[device] ${conn.deviceId} 完成动作：${msg.sessionId}`);
-        bus.emit('device:action_complete', msg.sessionId, conn.deviceId);
+        const s = sessionStore.get(msg.sessionId);
+        if (s?.state === 'await_action' && this.owns(conn, msg.sessionId) && s.action?.done === s.action?.moves.length) {
+          bus.emit('device:action_complete', msg.sessionId, conn.deviceId);
+        }
         break;
       }
       case 'print_started': {
         const s = sessionStore.get(msg.sessionId);
-        if (!s?.authorizedPrint) {
+        if (!s?.authorizedPrint || !this.owns(conn, msg.sessionId) || s.state !== 'printing') {
           // 门控：未授权不得打印
           console.warn(`[device] ${conn.deviceId} 未授权打印被拦截：${msg.sessionId}`);
           bus.emit('device:error', {
@@ -128,11 +137,26 @@ export class DeviceGateway {
       }
       case 'print_done': {
         console.log(`[device] ${conn.deviceId} 打印完成：${msg.sessionId}`);
-        bus.emit('device:print_done', msg.sessionId, conn.deviceId);
+        const s = sessionStore.get(msg.sessionId);
+        if (s?.authorizedPrint && this.owns(conn, msg.sessionId) && s.state === 'printing') {
+          bus.emit('device:print_done', msg.sessionId, conn.deviceId);
+        }
+        break;
+      }
+      case 'capsule_dispensed': {
+        const s = sessionStore.get(msg.sessionId);
+        if (s?.state === 'encapsulating' && s.authorizedCapsule && s.delivery === 'capsule' &&
+            this.owns(conn, msg.sessionId) && msg.paperCaptured === true &&
+            msg.capsuleClosed === true && msg.outletClear === true) {
+          bus.emit('device:capsule_dispensed', msg.sessionId, conn.deviceId);
+        } else {
+          console.warn(`[device] 拒绝无效的胶囊完成信号：${msg.sessionId}`);
+        }
         break;
       }
       case 'error': {
         console.warn(`[device] ${conn.deviceId} 上报错误：${msg.code} ${msg.message ?? ''}`);
+        if (msg.sessionId && !this.owns(conn, msg.sessionId)) break;
         bus.emit('device:error', {
           sessionId: msg.sessionId,
           deviceId: conn.deviceId,
@@ -142,7 +166,7 @@ export class DeviceGateway {
         break;
       }
       case 'button': {
-        if (msg.button === 'cancel' && msg.sessionId) {
+        if (msg.button === 'cancel' && msg.sessionId && this.owns(conn, msg.sessionId)) {
           sessionStore.patch(msg.sessionId, { state: 'error', error: '已在设备上取消' });
         }
         break;
@@ -162,31 +186,42 @@ export class DeviceGateway {
     return this.conns.size > 0;
   }
 
+  isDeviceOnline(deviceId: string, connectionKey?: string): boolean {
+    return [...this.conns.values()].some((c) => c.deviceId === deviceId &&
+      (!connectionKey || c.connectionKey === connectionKey) && c.ws.readyState === WebSocket.OPEN);
+  }
+
   primaryDeviceId(): string | undefined {
     for (const conn of this.conns.values()) return conn.deviceId;
     return undefined;
   }
 
-  deviceStatus(): { deviceId: string; state: string; firmware?: string; lastSeen: number }[] {
+  deviceStatus(): { deviceId: string; state: string; firmware?: string; capsuleCapable: boolean; lastSeen: number }[] {
     return [...this.conns.values()].map((c) => ({
       deviceId: c.deviceId,
       state: c.state,
       firmware: c.firmware,
+      capsuleCapable: c.capsuleCapable,
       lastSeen: c.lastSeen,
     }));
   }
 
   /** 下发打印任务；返回是否真的发给了设备 */
   dispatchTask(session: SessionRecord): boolean {
-    const conn = [...this.conns.values()][0];
+    const conn = [...this.conns.values()].find((c) =>
+      c.ws.readyState === WebSocket.OPEN && c.state === 'idle' && sessionStore.activeForDevice(c.deviceId, c.connectionKey).length === 0);
     if (!conn || !session.story) return false;
-    const receipt = buildReceiptBuffer({
+    const delivery = conn.capsuleCapable ? 'capsule' : 'receipt';
+    const options = {
       title: session.story.title,
       scenes: session.story.scenes,
       ending: session.story.ending,
       disclaimer: session.story.disclaimer ?? '',
       shareUrl: session.shareUrl ?? SHARE_BASE,
-    });
+    };
+    const receipt = delivery === 'capsule'
+      ? buildCapsuleInsertBuffer({ ...options, sessionId: session.id })
+      : buildReceiptBuffer(options);
     this.send(conn, {
       type: 'task',
       sessionId: session.id,
@@ -202,13 +237,14 @@ export class DeviceGateway {
       shareUrl: session.shareUrl ?? SHARE_BASE,
       widthPx: 384,
       receiptBase64: receipt.toString('base64'),
+      delivery,
     });
-    sessionStore.patch(session.id, { deviceId: conn.deviceId });
+    sessionStore.patch(session.id, { deviceId: conn.deviceId, deviceConnectionKey: conn.connectionKey, delivery });
     return true;
   }
 
   requestAction(session: SessionRecord): void {
-    const conn = [...this.conns.values()][0];
+    const conn = [...this.conns.values()].find((c) => c.connectionKey === session.deviceConnectionKey);
     if (!conn || !session.action) return;
     this.send(conn, {
       type: 'action_required',
@@ -220,13 +256,21 @@ export class DeviceGateway {
 
   /** 打印授权：只有动作完成后才会被调用 */
   authorizePrint(sessionId: string): void {
-    const conn = [...this.conns.values()][0];
+    const s = sessionStore.get(sessionId);
+    const conn = [...this.conns.values()].find((c) => c.connectionKey === s?.deviceConnectionKey);
     if (!conn) return;
     this.send(conn, { type: 'print_authorized', sessionId });
   }
 
+  authorizeCapsule(sessionId: string): void {
+    const s = sessionStore.get(sessionId);
+    const conn = [...this.conns.values()].find((c) => c.connectionKey === s?.deviceConnectionKey);
+    if (conn && s?.delivery === 'capsule') this.send(conn, { type: 'capsule_authorized', sessionId });
+  }
+
   cancel(sessionId: string, reason = '服务端取消'): void {
-    const conn = [...this.conns.values()][0];
+    const s = sessionStore.get(sessionId);
+    const conn = [...this.conns.values()].find((c) => c.connectionKey === s?.deviceConnectionKey);
     if (!conn) return;
     this.send(conn, { type: 'cancel', sessionId, reason });
   }

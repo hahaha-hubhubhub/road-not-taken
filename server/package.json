@@ -14,6 +14,7 @@
     "receipt-preview": "tsx scripts/previewReceipt.ts",
     "browser-check": "tsx scripts/browserCheck.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "capsule-check": "tsx scripts/capsuleCheck.ts",
     "try-llm": "tsx scripts/tryLlm.ts",
     "make-preset-images": "tsx scripts/makePresetImages.ts"
   },

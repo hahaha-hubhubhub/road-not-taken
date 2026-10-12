@@ -8,6 +8,7 @@ export type SessionState =
   | 'generating'
   | 'await_action'
   | 'printing'
+  | 'encapsulating'
   | 'done'
   | 'error';
 
@@ -35,11 +36,16 @@ export interface SessionRecord {
   action?: ActionCommand;
   /** 已授权打印（只有动作完成后才为 true）——打印门控 */
   authorizedPrint: boolean;
+  /** 输出模式由接单设备能力决定；无设备时仅为演示 */
+  delivery?: 'capsule' | 'receipt' | 'demo';
+  authorizedCapsule?: boolean;
   printStartedAt?: number;
   doneAt?: number;
   shareUrl?: string;
   /** 承担本次任务的设备 */
   deviceId?: string;
+  /** 本进程内唯一连接标识，避免同名设备连接接管任务 */
+  deviceConnectionKey?: string;
   /** 生成耗时（毫秒） */
   generateMs?: number;
   /** 演示模式（无硬件模拟）完成 */
@@ -111,6 +117,12 @@ class SessionStore {
       }
     }
     return removed;
+  }
+
+  activeForDevice(deviceId: string, connectionKey?: string): SessionRecord[] {
+    return [...this.map.values()].filter((s) => s.deviceId === deviceId &&
+      (!connectionKey || s.deviceConnectionKey === connectionKey) &&
+      (s.state === 'await_action' || s.state === 'printing' || s.state === 'encapsulating'));
   }
 
   get size(): number {
