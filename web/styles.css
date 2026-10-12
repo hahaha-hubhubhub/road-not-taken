@@ -159,6 +159,21 @@ button:active { transform: scale(0.98); }
 .dots span.cur { background: var(--ink); animation: pulse 1s ease infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 
+/* 倾斜指示条：中间为零点，左右填充表示当前倾角，让用户知道"我倾得够不够" */
+.flip-meter {
+  position: relative; height: 6px; margin-top: 16px; border-radius: 3px;
+  background: var(--line); overflow: hidden;
+}
+.flip-meter::before {
+  content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+  background: var(--paper); opacity: 0.7;
+}
+#flip-meter-fill {
+  position: absolute; top: 0; bottom: 0; left: 50%; width: 0;
+  background: var(--accent); transition: width 0.08s linear, left 0.08s linear;
+}
+.flip-meter.warn #flip-meter-fill { background: #c0392b; }
+
 /* 打印中 */
 .printer { width: 120px; margin: 30px auto 6px; }
 .printer .paper {

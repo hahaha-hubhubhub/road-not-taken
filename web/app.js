@@ -135,6 +135,8 @@
   /* ---------------- 视图切换 ---------------- */
   const VIEWS = ['input', 'generating', 'waiting', 'printing', 'encapsulating', 'result'];
   function showView(name) {
+    // 离开等待视图时必须停掉传感器监听，否则手势会跨 session 串味
+    if (name !== 'waiting' && flip) teardownFlip();
     VIEWS.forEach((v) => $(`view-${v}`).classList.toggle('hidden', v !== name));
     window.scrollTo(0, 0);
   }
@@ -373,8 +375,130 @@
     }, 1200);
   }
 
+  /* ---------------- 翻转手势（手机即设备，HW-03） ---------------- */
+
+  let flip = null;          // 当前 session 的检测器
+  let flipDone = 0;         // 本地已完成的格数（服务端只在全部完成后才更新）
+
+  function teardownFlip() {
+    if (flip) { flip.stop(); flip = null; }
+    flipDone = 0;
+    $('flip-meter').classList.add('hidden');
+    $('flip-meter').classList.remove('warn');
+    $('btn-flip-start').classList.add('hidden');
+  }
+
+  /**
+   * 进入等待态时装配检测器。
+   * 有实体设备在线时不需要手机传感器（真机自己上报动作），否则提供翻转入口；
+   * 传感器不可用（非安全上下文 / 无 DeviceOrientationEvent）时回落到按钮。
+   */
+  function setupFlip(s) {
+    teardownFlip();
+    const startBtn = $('btn-flip-start');
+    const meter = $('flip-meter');
+
+    if (s.deviceConnected || !s.action || !s.action.total) {
+      startBtn.classList.add('hidden');
+      return;
+    }
+    if (!RNTFlip.canUseFlip()) {
+      // 非安全上下文（如 http + 局域网 IP）下浏览器会静默拦截传感器事件
+      startBtn.classList.add('hidden');
+      $('waiting-hint').textContent =
+        '当前连接方式不让浏览器读取传感器。改用下方按钮完成动作，或用 USB 连接后访问 localhost。';
+      return;
+    }
+
+    startBtn.classList.remove('hidden');
+    startBtn.disabled = false;
+    startBtn.textContent = '准备好了，拿起手机';
+    meter.classList.remove('hidden');
+
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      const ok = await flip.start();
+      if (!ok) {
+        startBtn.textContent = '传感器权限被拒绝，请用按钮';
+        meter.classList.add('hidden');
+        return;
+      }
+      startBtn.classList.add('hidden');
+      $('waiting-hint').textContent = '按提示左右翻转手机；每完成一段，进度点亮一格。';
+    };
+
+    flip = RNTFlip.createFlipDetector(s.action.moves);
+
+    flip.onProgress((done, total, move) => {
+      flipDone = done;
+      paintFlipProgress(done, total, move);
+    });
+
+    flip.onWrong((actual, expected, done) => {
+      const meterEl = $('flip-meter');
+      meterEl.classList.add('warn');
+      $('action-text').textContent = `反了，这次要${expected === 'L' ? '向左' : '向右'}翻`;
+      setTimeout(() => {
+        meterEl.classList.remove('warn');
+        $('action-text').textContent = flipText(done, flipMovesCache.length);
+      }, 900);
+    });
+
+    flip.onTilt((gamma) => {
+      // 倾角映射到指示条：±90° 对应半宽
+      const pct = Math.min(50, Math.abs(gamma) / 90 * 50);
+      const fill = $('flip-meter-fill');
+      if (gamma < 0) {
+        fill.style.left = `${50 - pct}%`;
+      } else {
+        fill.style.left = '50%';
+      }
+      fill.style.width = `${pct}%`;
+    });
+
+    flip.onComplete(async () => {
+      // 手机完成全部动作 → 走与服务端真机同一条完成入口
+      await completeFlipAndContinue();
+    });
+  }
+
+  function flipText(done, total) {
+    const next = flipMovesCache[done];
+    if (!next) return '翻转完成';
+    const dir = next === 'L' ? '向左' : '向右';
+    return `${dir}翻（第 ${done + 1} / ${total} 步）`;
+  }
+
+  function paintFlipProgress(done, total, move) {
+    const dots = $('action-dots');
+    if (dots.childElementCount !== total) {
+      dots.innerHTML = '';
+      for (let i = 0; i < total; i++) dots.appendChild(document.createElement('span'));
+    }
+    [...dots.children].forEach((el, i) => {
+      el.className = i < done ? 'on' : i === done ? 'cur' : '';
+    });
+    $('action-text').textContent = done >= total ? '翻转完成，正在解锁…' : flipText(done, total);
+    if (move && navigator.vibrate) navigator.vibrate(30);  // HW-02：震动反馈
+  }
+
+  /** 完成动作 → 调服务端 → 进入打印 */
+  async function completeFlipAndContinue() {
+    if (!state.sessionId) return;
+    try {
+      await api(`/sessions/${state.sessionId}/simulate-action`, { method: 'POST', body: {} });
+      teardownFlip();
+      showPrinting();
+    } catch (err) {
+      showInputError(err.message);
+    }
+  }
+
+  let flipMovesCache = [];
+
   function showWaiting(s) {
     $('action-text').textContent = s.action ? s.action.text : '完成翻转动作';
+    flipMovesCache = s.action ? s.action.moves.slice() : [];
     updateActionDots(s);
     const simulate = $('btn-simulate');
     const hint = $('waiting-hint');
@@ -390,11 +514,15 @@
     }
     note.textContent = s.degraded ? '模型超时或未连接，本次使用预生成演示案例。' : '';
     showView('waiting');
+    setupFlip(s);   // 装配手机传感器检测
   }
 
   function updateActionDots(s) {
+    // 手机传感器驱动时，本地进度比服务端更细：服务端只有全部完成才更新 action.done，
+    // 而轮询有 1.2s 延迟，用服务端值会把已经翻完的格子弹回未完成状态。
     const total = s.action ? s.action.total : 0;
-    const done = s.action ? s.action.done : 0;
+    const serverDone = s.action ? s.action.done : 0;
+    const done = Math.max(serverDone, flipDone);
     const dots = $('action-dots');
     if (dots.childElementCount !== total) {
       dots.innerHTML = '';
