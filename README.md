@@ -25,7 +25,6 @@
 
 - [胶囊版 PRD v0.2（评审草案）](docs/CAPSULE_PRD.md)
 - [产品拷打与验证计划](docs/PRODUCT_REVIEW.md)
-- [差异化策略：双面胶囊（下一迭代，未实现）](docs/DIFFERENTIATION.md)
 - [原产品需求 v0.1（历史小票方案）](docs/PRD.md)
 - [软件架构与接口契约](docs/ARCHITECTURE.md)
 - [进度记录与实测数据](docs/PROGRESS.md)
