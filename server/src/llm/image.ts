@@ -33,12 +33,22 @@ export interface GenerateImagesResult {
   error?: string;
 }
 
-/** 统一风格后缀：三张图必须看起来是同一套作品 */
+/**
+ * 统一风格后缀：三张图必须看起来是同一套作品。
+ *
+ *  Negative约束是实测踩出来的：只写"画一个App图标设计"时，模型会画一个
+ * 图片占位符图标（山形+太阳的通用符号）而不是具体场景——因为"图标"这个词
+ * 本身就是抽象指令。所以这里显式要求画具体的人和物，并禁掉占位符类元素。
+ */
 const STYLE_SUFFIX =
+  'Draw a concrete scene with real objects and a person in it. ' +
+  'Never draw placeholder graphics, image frames, icons-as-subjects, ' +
+  'blank screens, or empty panels — if the subject involves a screen or artwork, ' +
+  'show what is actually on it or show the person working on it. ' +
   'Style: black and white line drawing, thick bold outlines, flat high contrast, ' +
-  'minimal detail, no gradients, no gray shading, clean composition with generous ' +
+  'minimal detail, no gradients, no gray fills, clean composition with generous ' +
   'negative space. Keep the same character and setting across all three images. ' +
-  'Aspect ratio 1:1. Do not include any text, letters, or watermarks in the image.';
+  'Aspect ratio 1:1. Do not include any text, letters, numbers, or watermarks.';
 
 /** 输出目录：server/out/images/<sessionId>-<n>.png */
 function imageDir(): string {
