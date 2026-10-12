@@ -95,8 +95,10 @@
         <div id="action-card" class="action-card">
           <div id="action-text" class="action-text">向左翻 1 次</div>
           <div id="action-dots" class="dots"></div>
+          <div id="flip-meter" class="flip-meter hidden" aria-hidden="true"><div id="flip-meter-fill"></div></div>
         </div>
         <p id="waiting-hint" class="sub">完成翻转后才开始打印；纸带随后将被卷进展示胶囊。</p>
+        <button id="btn-flip-start" class="primary hidden" type="button">准备好了，拿起手机</button>
         <button id="btn-simulate" class="primary hidden" type="button">我完成了翻转（演示）</button>
         <p id="waiting-note" class="muted small"></p>
         <button class="ghost" type="button" data-action="restart">重新输入</button>
@@ -131,6 +133,7 @@
     <footer>虚构想象，非人生预测 · 胶囊为展示道具，请勿吞食</footer>
   </div>
 
+  <script src="flip.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
