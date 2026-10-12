@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { CANONICAL_DISCLAIMER, SHARE_BASE, config } from '../config.js';
 import { gateway } from '../device/gateway.js';
 import { DEMO_CASES } from '../llm/demoCases.js';
+import { imagePath } from '../llm/image.js';
 import { sessionStore } from './store.js';
 import {
   completeAction,
@@ -127,8 +128,76 @@ apiRouter.get('/sessions/:id/result', (req: Request, res: Response) => {
 });
 
 /**
- * 演示模式：无硬件时模拟"完成翻转动作"。
+ * 生成图（AI-03）。仅在图片已生成时返回，否则 404 让前端回落预置图。
+ * 图片不入小票（胶囊内芯只装文字，见 CAPSULE_PRD C-04），只在手机端展示。
+ */
+apiRouter.get('/sessions/:id/images/:index', (req: Request, res: Response) => {
+  const session = sessionStore.get(req.params.id);
+  if (!session) {
+    res.status(404).end();
+    return;
+  }
+  const index = Number(req.params.index);
+  if (!Number.isInteger(index) || index < 1 || index > 3) {
+    res.status(400).json({ error: 'index 必须是 1-3' });
+    return;
+  }
+  const file = imagePath(session.id, index);
+  if (!file) {
+    // 未生成 / 生成失败 / 已过期：让前端继续用预置图
+    res.status(404).end();
+    return;
+  }
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.sendFile(file);
+});
+
+/**
+ * 手机上报翻转进度（HW-03：传感器在手机上，不在设备上）。
+ *
+ * 与 simulate-action 的区别：这个是用户真的翻了手机，逐格上报；
+ * simulate-action 是无任何设备时的整段模拟。设备已接单时也允许走这个接口，
+ * 因为翻转确实发生在手机上——设备只负责打印和出仓，不负责感知翻转。
+ *
+ * body: { done: number }  已完成的格数（1..total）
+ * 达到 total 时服务端授权打印（打印门控：未完成不授权）。
+ */
+apiRouter.post('/sessions/:id/flip-progress', (req: Request, res: Response) => {
+  const session = sessionStore.get(req.params.id);
+  if (!session) {
+    res.status(404).json({ error: 'session 不存在或已过期' });
+    return;
+  }
+  if (session.state !== 'await_action' || !session.action) {
+    res.status(409).json({ error: '当前状态不能上报翻转进度', state: session.state });
+    return;
+  }
+
+  const total = session.action.moves.length;
+  const raw = Number(req.body?.done);
+  if (!Number.isInteger(raw) || raw < 1 || raw > total) {
+    res.status(400).json({ error: `done 必须是 1-${total} 的整数` });
+    return;
+  }
+
+  const done = Math.max(session.action.done, raw); // 只前进不回退
+  if (done < total) {
+    sessionStore.patch(session.id, { action: { ...session.action, done } });
+    res.json(getPublicView(sessionStore.get(session.id)!));
+    return;
+  }
+
+  // 全部完成 → 走与设备上报同一条完成入口，由服务端授权打印
+  completeAction(session.id, 'device');
+  res.json(getPublicView(sessionStore.get(session.id)!));
+});
+
+/**
+ * 演示模式：无任何设备接单时，由网页模拟"完成翻转动作"。
  * 与真实设备走同一条状态机与打印门控，只是由服务端代替设备上报。
+ * 设备已接单时禁用——那意味着有真机在场，翻转应由手机传感器通过
+ * flip-progress 上报，不能整段假装完成。
  */
 apiRouter.post('/sessions/:id/simulate-action', (req: Request, res: Response) => {
   const session = sessionStore.get(req.params.id);

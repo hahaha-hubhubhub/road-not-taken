@@ -43,6 +43,7 @@
     hasServerKey: false,
     mockLlm: false,
     serverModel: '',
+    imageCatchUp: null,
   };
 
   /* ---------------- 内置演示案例（无后端时也能看） ---------------- */
@@ -135,6 +136,10 @@
   /* ---------------- 视图切换 ---------------- */
   const VIEWS = ['input', 'generating', 'waiting', 'printing', 'encapsulating', 'result'];
   function showView(name) {
+    // 离开结果视图时停掉补图轮询；离开等待视图时停掉传感器监听，
+    // 否则手势和轮询都会跨 session 串味。
+    if (name !== 'result') clearInterval(state.imageCatchUp);
+    if (name !== 'waiting' && flip) teardownFlip();
     VIEWS.forEach((v) => $(`view-${v}`).classList.toggle('hidden', v !== name));
     window.scrollTo(0, 0);
   }
@@ -354,6 +359,8 @@
           state.result = s;
           renderResult(s);
           showView('result');
+          // 生图是后台并行的，done 时可能还没跑完；补一个短轮询把图换上
+          if (s.imageStatus !== 'ready' && s.kind !== 'care') startImageCatchUp();
         } else if (s.state === 'error' && state.lastState !== 'error') {
           state.lastState = 'error';
           stopPoll();
@@ -373,8 +380,149 @@
     }, 1200);
   }
 
+  /* ---------------- 翻转手势（手机即设备，HW-03） ---------------- */
+
+  let flip = null;          // 当前 session 的检测器
+  let flipDone = 0;         // 本地已完成的格数（服务端只在全部完成后才更新）
+
+  function teardownFlip() {
+    if (flip) { flip.stop(); flip = null; }
+    flipDone = 0;
+    $('flip-meter').classList.add('hidden');
+    $('flip-meter').classList.remove('warn');
+    $('btn-flip-start').classList.add('hidden');
+  }
+
+  /**
+   * 进入等待态时装配检测器。
+   * 有实体设备在线时不需要手机传感器（真机自己上报动作），否则提供翻转入口；
+   * 传感器不可用（非安全上下文 / 无 DeviceOrientationEvent）时回落到按钮。
+   */
+  function setupFlip(s) {
+    teardownFlip();
+    const startBtn = $('btn-flip-start');
+    const meter = $('flip-meter');
+
+    if (s.deviceConnected || !s.action || !s.action.total) {
+      startBtn.classList.add('hidden');
+      return;
+    }
+    if (!RNTFlip.canUseFlip()) {
+      // 非安全上下文（如 http + 局域网 IP）下浏览器会静默拦截传感器事件
+      startBtn.classList.add('hidden');
+      $('waiting-hint').textContent =
+        '当前连接方式不让浏览器读取传感器。改用下方按钮完成动作，或用 USB 连接后访问 localhost。';
+      return;
+    }
+
+    startBtn.classList.remove('hidden');
+    startBtn.disabled = false;
+    startBtn.textContent = '准备好了，拿起手机';
+    meter.classList.remove('hidden');
+
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      const ok = await flip.start();
+      if (!ok) {
+        startBtn.textContent = '传感器权限被拒绝，请用按钮';
+        meter.classList.add('hidden');
+        return;
+      }
+      startBtn.classList.add('hidden');
+      $('waiting-hint').textContent = '按提示左右翻转手机；每完成一段，进度点亮一格。';
+    };
+
+    flip = RNTFlip.createFlipDetector(s.action.moves);
+
+    flip.onProgress(async (done, total, move) => {
+      flipDone = done;
+      paintFlipProgress(done, total, move);
+      // 逐格上报：服务端据此推进进度，全部完成时授权打印。
+      // 无设备接单时后端可能还没这个 session 的状态机分支，失败不影响本地显示。
+      try {
+        await api(`/sessions/${state.sessionId}/flip-progress`, { method: 'POST', body: { done } });
+      } catch (_) {
+        /* 由 completeFlipAndContinue 兜底 */
+      }
+    });
+
+    flip.onWrong((actual, expected, done) => {
+      const meterEl = $('flip-meter');
+      meterEl.classList.add('warn');
+      $('action-text').textContent = `反了，这次要${expected === 'L' ? '向左' : '向右'}翻`;
+      setTimeout(() => {
+        meterEl.classList.remove('warn');
+        $('action-text').textContent = flipText(done, flipMovesCache.length);
+      }, 900);
+    });
+
+    flip.onTilt((gamma) => {
+      // 倾角映射到指示条：±90° 对应半宽
+      const pct = Math.min(50, Math.abs(gamma) / 90 * 50);
+      const fill = $('flip-meter-fill');
+      if (gamma < 0) {
+        fill.style.left = `${50 - pct}%`;
+      } else {
+        fill.style.left = '50%';
+      }
+      fill.style.width = `${pct}%`;
+    });
+
+    flip.onComplete(async () => {
+      // 最后一格的 flip-progress 已让服务端授权打印；这里只负责切视图。
+      // 后端拒绝时（例如无设备接单）回落到演示入口。
+      if (!state.sessionId) return;
+      try {
+        await api(`/sessions/${state.sessionId}/flip-progress`, {
+          method: 'POST',
+          body: { done: flip.total },
+        });
+      } catch (_) {
+        await completeFlipAndContinue();
+        return;
+      }
+      teardownFlip();
+      showPrinting();
+    });
+  }
+
+  function flipText(done, total) {
+    const next = flipMovesCache[done];
+    if (!next) return '翻转完成';
+    const dir = next === 'L' ? '向左' : '向右';
+    return `${dir}翻（第 ${done + 1} / ${total} 步）`;
+  }
+
+  function paintFlipProgress(done, total, move) {
+    const dots = $('action-dots');
+    if (dots.childElementCount !== total) {
+      dots.innerHTML = '';
+      for (let i = 0; i < total; i++) dots.appendChild(document.createElement('span'));
+    }
+    [...dots.children].forEach((el, i) => {
+      el.className = i < done ? 'on' : i === done ? 'cur' : '';
+    });
+    $('action-text').textContent = done >= total ? '翻转完成，正在解锁…' : flipText(done, total);
+    if (move && navigator.vibrate) navigator.vibrate(30);  // HW-02：震动反馈
+  }
+
+  /** 完成动作 → 调服务端 → 进入打印 */
+  async function completeFlipAndContinue() {
+    if (!state.sessionId) return;
+    try {
+      await api(`/sessions/${state.sessionId}/simulate-action`, { method: 'POST', body: {} });
+      teardownFlip();
+      showPrinting();
+    } catch (err) {
+      showInputError(err.message);
+    }
+  }
+
+  let flipMovesCache = [];
+
   function showWaiting(s) {
     $('action-text').textContent = s.action ? s.action.text : '完成翻转动作';
+    flipMovesCache = s.action ? s.action.moves.slice() : [];
     updateActionDots(s);
     const simulate = $('btn-simulate');
     const hint = $('waiting-hint');
@@ -390,11 +538,15 @@
     }
     note.textContent = s.degraded ? '模型超时或未连接，本次使用预生成演示案例。' : '';
     showView('waiting');
+    setupFlip(s);   // 装配手机传感器检测
   }
 
   function updateActionDots(s) {
+    // 手机传感器驱动时，本地进度比服务端更细：服务端只有全部完成才更新 action.done，
+    // 而轮询有 1.2s 延迟，用服务端值会把已经翻完的格子弹回未完成状态。
     const total = s.action ? s.action.total : 0;
-    const done = s.action ? s.action.done : 0;
+    const serverDone = s.action ? s.action.done : 0;
+    const done = Math.max(serverDone, flipDone);
     const dots = $('action-dots');
     if (dots.childElementCount !== total) {
       dots.innerHTML = '';
@@ -420,6 +572,32 @@
   /* ---------------- 结果渲染 ---------------- */
   const relImg = (url) => String(url || '').replace(/^\//, '');
 
+  /**
+   * 补图轮询：done 时生图可能还在跑（三张并行约 34s，用户翻转只要几秒）。
+   * 每 2.5s 查一次，拿到就绪或超过 60s 就停，避免无谓请求。
+   */
+  function startImageCatchUp() {
+    clearInterval(state.imageCatchUp);
+    let elapsed = 0;
+    state.imageCatchUp = setInterval(async () => {
+      elapsed += 2500;
+      if (!state.sessionId || elapsed > 60000) {
+        clearInterval(state.imageCatchUp);
+        return;
+      }
+      try {
+        const s = await api(`/sessions/${state.sessionId}`, { timeout: 8000 });
+        state.result = s;
+        if (s.imageStatus === 'ready') {
+          clearInterval(state.imageCatchUp);
+          renderResult(s);   // 用生成图重绘
+        }
+      } catch (_) {
+        clearInterval(state.imageCatchUp);
+      }
+    }, 2500);
+  }
+
   function renderResult(s) {
     const note = $('delivery-note');
     note.textContent = s.kind === 'care' ? '这一次先不讲笑话，也不出胶囊。请照顾好自己。'
@@ -431,12 +609,21 @@
     const meta = `RNT-${String(s.sessionId || '').slice(0, 6).toUpperCase()} · ${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     const acts = (s.acts || [])
       .map(
-        (a) => `
+        (a) => {
+          // AI-03：图片就绪的幕用生成图，其余回落预置图。onerror 兜底，
+          // 避免生图刚好失败或已过期时出现破图。
+          const ready = s.imageStatus === 'ready' && (s.imageReadyActs || []).includes(a.index);
+          const genUrl = ready ? `${state.apiBase}/api/sessions/${s.sessionId}/images/${a.index}` : '';
+          const preset = relImg(a.imageUrl);
+          const src = genUrl || preset;
+          const fallback = genUrl ? ` onerror="this.onerror=null;this.src='${preset.replace(/'/g, "\\'")}'"` : '';
+          return `
         <div class="act">
           <div class="act-label">第${CN_NUM[a.index - 1] || a.index}幕 · ${escapeHtml(a.name)}</div>
-          <img src="${escapeHtml(relImg(a.imageUrl))}" alt="第${a.index}幕插画" />
+          <img src="${escapeHtml(src)}"${fallback} alt="第${a.index}幕插画" />
           <p>${escapeHtml(a.caption)}</p>
-        </div>`,
+        </div>`;
+        },
       )
       .join('<div class="dashed"></div>');
 

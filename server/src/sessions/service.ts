@@ -3,8 +3,10 @@ import { ACT_LABELS, SHARE_BASE, config } from '../config.js';
 import { gateway } from '../device/gateway.js';
 import type { Move } from '../device/protocol.js';
 import { InputRejectedError, generateStory } from '../llm/generate.js';
+import { generateSceneImages } from '../llm/image.js';
 import { checkInput } from '../llm/safety.js';
 import type { GenerateKind } from '../llm/generate.js';
+import type { Story } from '../llm/schema.js';
 import { makeActionCommand, sessionStore, type SessionRecord, type SessionState } from './store.js';
 
 export interface PublicAct {
@@ -34,6 +36,9 @@ export interface PublicSessionView {
   generateMs?: number;
   simulated?: boolean;
   delivery?: 'capsule' | 'receipt' | 'demo';
+  /** 图片生成状态；pending 时前端用预置图占位 */
+  imageStatus?: 'pending' | 'ready' | 'failed';
+  imageReadyActs?: number[];
   createdAt: number;
   updatedAt: number;
   doneAt?: number;
@@ -80,6 +85,9 @@ export function getPublicView(s: SessionRecord): PublicSessionView {
   if (s.generateMs !== undefined) view.generateMs = s.generateMs;
   if (s.delivery) view.delivery = s.delivery;
   if (s.simulated) view.simulated = true;
+  // 图片就绪情况：前端据此决定用生成图还是回落预置图
+  if (s.imageStatus) view.imageStatus = s.imageStatus;
+  if (s.imageReadyActs) view.imageReadyActs = s.imageReadyActs;
   if (s.doneAt) view.doneAt = s.doneAt;
   return view;
 }
@@ -140,8 +148,16 @@ export function startGeneration(sessionId: string, text: string, apiKey?: string
         generateMs: result.durationMs,
         action,
         authorizedPrint: false,
+        imageStatus: 'pending',
+        imageReadyActs: [],
         shareUrl: `${SHARE_BASE}/#/r/${sessionId}`,
       });
+
+      // 生图与状态机并行，不阻塞进入 await_action。
+      // 用户在翻转设备那几秒里图片刚好在后台生成完，感知不到额外等待；
+      // 若图没赶上，前端继续显示预置图，不影响取票。
+      void kickOffImages(sessionId, result.story);
+
       const updated = sessionStore.get(sessionId);
       if (updated) bus.emit('session:ready', updated);
     })
@@ -153,9 +169,52 @@ export function startGeneration(sessionId: string, text: string, apiKey?: string
 }
 
 /**
+ * 后台生成三幕插画（AI-03）。
+ *
+ * 与主流程解耦：失败只把 imageStatus 置 failed，前端继续用预置图，
+ * 绝不让生图问题影响取票。已取消的 session 直接丢弃结果。
+ */
+async function kickOffImages(sessionId: string, story: Story): Promise<void> {
+  const prompts = story.scenes.map((s: { image_prompt: string }) => s.image_prompt).filter(Boolean);
+  if (prompts.length < 3) {
+    sessionStore.patch(sessionId, { imageStatus: 'failed' });
+    return;
+  }
+  try {
+    const result = await generateSceneImages(sessionId, prompts);
+    if (!sessionStore.get(sessionId)) return; // 会话已过期
+    sessionStore.patch(sessionId, {
+      imageStatus: result.ok ? 'ready' : 'failed',
+      imageReadyActs: result.images.map((i) => i.index),
+      imageMs: result.images[0]?.ms,
+    });
+    console.log(
+      `[image] ${sessionId}：${result.images.length}/3 成功` +
+        (result.missing.length ? `，缺第 ${result.missing.join('/')} 幕（回落预置图）` : ''),
+    );
+  } catch (err) {
+    console.warn(`[image] ${sessionId} 生图异常：`, err instanceof Error ? err.message : err);
+    sessionStore.patch(sessionId, { imageStatus: 'failed' });
+  }
+}
+
+/**
  * 动作完成 → 进入打印。
  * via=device 由真实硬件上报；via=demo 由手机完成翻转（B 路）或无硬件演示。
  * 是否授权打印取决于当前是否有打印服务在线，与 via 无关。
+ */
+/**
+ * 动作完成 → 进入打印。
+ *
+ * via 的语义（B 路 + 胶囊架构下容易混，这里说清楚）：
+ *   'device' —— 实体设备通过 WebSocket 上报 action_complete。这是唯一被允许
+ *              在设备已接单时完成动作的路径，因为它意味着真实硬件确认了翻转。
+ *   'demo'   —— 没有任何设备接单时的网页模拟。此时没有真机，完成动作只是
+ *              让流程继续，打印/出仓都由服务端定时器模拟。
+ *
+ * 注意：手机上的翻转手势走的是 'demo' 入口——传感器在手机上，不在设备上。
+ * 所以设备已接单时不能再按 'demo' 放行，否则等于允许网页替真机确认翻转，
+ * 打印门控（PRD 验收 3）就失效了。真机链路下应由设备上报。
  */
 export function completeAction(sessionId: string, via: 'device' | 'demo'): boolean {
   const s = sessionStore.get(sessionId);
@@ -223,6 +282,24 @@ export function wireBus(): void {
       console.log(`[service] 任务已下发设备：${session.id}`);
     } else {
       console.log(`[service] 无设备在线，进入演示模式：${session.id}`);
+    }
+  });
+
+  /**
+   * 设备上线时补发积压的任务。
+   *
+   * 现场顺序常常是反的：用户先在手机上输入、模型开始生成，打印服务才启动。
+   * 此时 session:ready 找不到设备，任务从未下发，之后无论用户怎么翻转都不会出票，
+   * 而状态机已经走到 printing——卡死在那里。
+   * 所以设备一上线就把仍处于 await_action 且未分配设备的 session 补发出去。
+   */
+  bus.on('device:connected', () => {
+    const pending = sessionStore.listAwaitingUnassigned();
+    for (const s of pending) {
+      if (gateway.dispatchTask(s)) {
+        gateway.requestAction(s);
+        console.log(`[service] 设备上线，补发积压任务：${s.id}`);
+      }
     }
   });
 

@@ -26,14 +26,41 @@ export const config = {
     apiKey: process.env.STEPFUN_API_KEY ?? '',
     baseUrl: (process.env.STEPFUN_BASE_URL ?? 'https://api.stepfun.com/v1').replace(/\/+$/, ''),
     model: process.env.STEPFUN_MODEL ?? 'step-5-preview',
-    maxTokens: num(process.env.STEPFUN_MAX_TOKENS, 8000),
-    timeoutMs: num(process.env.STEPFUN_TIMEOUT_MS, 60000),
+    maxTokens: num(process.env.STEPFUN_MAX_TOKENS, 4000),
+    timeoutMs: num(process.env.STEPFUN_TIMEOUT_MS, 90000),
     /**
-     * 推理强度。注意：step-5-preview 的思考过程也计入 completion_tokens，
-     * max_tokens 必须留够（实测思考 1000-2500 tokens + 正文约 500）。
-     * 实测（同一 prompt）：medium ≈ 21-32s，low ≈ 28-41s，high ≈ 39s。
+     * 推理强度。实测（2026-10-12，models-proxy 网关，完整三幕 prompt）：
+     *
+     *   medium + max_tokens 8000 → 65s   三幕完整
+     *   medium + max_tokens 4000 → 46s   三幕完整
+     *   low    + max_tokens 4000 → 33s   三幕完整   ← 当前默认
+     *   low    + max_tokens 2000 → 37s   正文被截断，不可用
+     *
+     * 注意 models-proxy 上 reasoning_tokens 恒为 0，思考量看不出来，
+     * 但 effort 确实影响耗时与质量。max_tokens 不要低于 4000：2000 会截断正文。
+     * 若现场网络差，用 low + 4000；若追求文案质量且不赶时间，可调回 medium。
      */
-    reasoningEffort: (process.env.STEPFUN_REASONING_EFFORT ?? 'medium') as 'low' | 'medium' | 'high',
+    reasoningEffort: (process.env.STEPFUN_REASONING_EFFORT ?? 'low') as 'low' | 'medium' | 'high',
+  },
+
+  /**
+   * 图片生成（AI-03）。gpt-image-2 走 models-proxy 网关，与文本用的 StepFun
+   * 主站不是同一个 base URL，所以单独一组配置。
+   *
+   * Key 只从 .env 读，不要写进代码或提交。未配置时生图自动关闭，
+   * 手机上回落预置图，不影响主流程。
+   *
+   * 实测（2026-10-12）：单张约 25s，三张并行约 34s。timeoutMs 按单张的
+   * 3 倍余量给，因为并行时网关排队可能更慢。
+   */
+  image: {
+    apiKey: process.env.IMAGE_API_KEY ?? '',
+    baseUrl: (process.env.IMAGE_BASE_URL ?? 'https://models-proxy.stepfun-inc.com/v1').replace(/\/+$/, ''),
+    model: process.env.IMAGE_MODEL ?? 'gpt-image-2',
+    timeoutMs: num(process.env.IMAGE_TIMEOUT_MS, 90000),
+    get enabled(): boolean {
+      return Boolean(this.apiKey);
+    },
   },
 
   /** 显式开启时用预生成案例跑通流程（断网演示）；没有 Key 时不再是静默降级，而是报错提示 */
