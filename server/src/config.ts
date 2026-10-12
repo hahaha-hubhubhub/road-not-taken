@@ -51,7 +51,14 @@ export const config = {
   capsuleTimeoutMs: num(process.env.CAPSULE_TIMEOUT_MS, 30000),
 
   /** 58mm 热敏打印机：384 点/行 */
-  print: { widthPx: 384 },
+  print: {
+    widthPx: 384,
+    /**
+     * 插画边长（点）。384 会占满整张纸宽，插画反而压过文字；
+     * 256 让插画退成一块"图版"，文字重新成为小票主体。
+     */
+    imageSizePx: num(process.env.PRINT_IMAGE_SIZE_PX, 256),
+  },
 
   /** 每次生成允许的 LLM 尝试次数（仅校验失败才重试；断网/超时立即降级） */
   maxAttempts: 2,

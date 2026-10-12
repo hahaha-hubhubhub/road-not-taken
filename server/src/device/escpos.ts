@@ -182,27 +182,161 @@ export function qrToBitmap(text: string, maxWidth = PRINT_WIDTH): Bitmap {
 /* 小票排版                                                            */
 /* ------------------------------------------------------------------ */
 
-/** 按全角字符宽度折行（384 点 / 16 点每字 = 24 字） */
-export function wrapText(text: string, maxChars = 24): string[] {
+/** 避头尾：不能出现在行首的收尾标点 */
+const NO_LINE_START = '，。、；：？！」』）】〉》”’…‰·,.;:?!)]}>';
+/** 避头尾：不能留在行尾的开引号 / 开括号 */
+const NO_LINE_END = '「『（【〈《“‘([{<';
+/** 意群边界：在这些字符之后换行，读起来比逐字硬折自然得多 */
+const BREAK_AFTER = '，。、；：？！」』）】〉》”’…';
+
+/** 逐字折行（遵守避头尾），仅用于单个意群就超宽的情况 */
+function wrapByChar(text: string, maxChars: number): string[] {
+  const chars = Array.from(text);
   const lines: string[] = [];
-  let line = '';
-  for (const ch of text) {
-    line += ch;
+  let line: string[] = [];
+
+  const flush = (): void => {
+    if (line.length > 0) lines.push(line.join(''));
+    line = [];
+  };
+
+  for (const ch of chars) {
     if (line.length >= maxChars) {
-      lines.push(line);
-      line = '';
+      const last = line[line.length - 1]!;
+      if (NO_LINE_END.includes(last)) {
+        line.pop();
+        flush();
+        line = [last, ch];
+        continue;
+      }
+      flush();
+      line = [ch];
+      continue;
     }
+    if (line.length === 0 && NO_LINE_START.includes(ch) && lines.length > 0) {
+      const prev = lines.pop()!;
+      const prevChars = Array.from(prev);
+      const borrowed = prevChars.pop();
+      if (borrowed !== undefined && prevChars.length > 0) {
+        lines.push(prevChars.join(''));
+        line = [borrowed, ch];
+        continue;
+      }
+      lines.push(prev);
+    }
+    line.push(ch);
   }
-  if (line) lines.push(line);
+  flush();
   return lines;
 }
 
+/**
+ * 折行：先按标点切意群，再把意群组装成行。
+ *
+ * 逐字硬折会把短语拆断——实测出现过「三种风 / 味；房东…」这样的断行，
+ * 读起来是断的。改成在意群边界换行后同样一段变成：
+ *   旺季时每天站十二小时，
+ *   淡季用同一袋豆子解释三种风味；
+ *   房东第三次涨租那天，窗外的云依然很好看。
+ * 只有单个意群本身就超过行宽时，才退回逐字折行（仍遵守避头尾）。
+ */
+export function wrapText(text: string, maxChars = 24): string[] {
+  const segments: string[] = [];
+  let seg: string[] = [];
+  for (const ch of Array.from(text)) {
+    seg.push(ch);
+    if (BREAK_AFTER.includes(ch)) {
+      segments.push(seg.join(''));
+      seg = [];
+    }
+  }
+  if (seg.length > 0) segments.push(seg.join(''));
+
+  const lines: string[] = [];
+  let line = '';
+  for (const s of segments) {
+    if (line === '') {
+      line = s;
+    } else if (Array.from(line).length + Array.from(s).length <= maxChars) {
+      line += s;
+    } else {
+      lines.push(line);
+      line = s;
+    }
+  }
+  if (line !== '') lines.push(line);
+
+  const out: string[] = [];
+  for (const l of lines) {
+    if (Array.from(l).length <= maxChars) out.push(l);
+    else out.push(...wrapByChar(l, maxChars));
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* 位图辅助                                                            */
+/* ------------------------------------------------------------------ */
+
+function setBit(bmp: Bitmap, x: number, y: number): void {
+  if (x < 0 || y < 0 || x >= bmp.width || y >= bmp.height) return;
+  bmp.data[y * bmp.bytesPerLine + (x >> 3)] |= 0x80 >> (x & 7);
+}
+
+function getBit(bmp: Bitmap, x: number, y: number): boolean {
+  if (x < 0 || y < 0 || x >= bmp.width || y >= bmp.height) return false;
+  return (bmp.data[y * bmp.bytesPerLine + (x >> 3)] & (0x80 >> (x & 7))) !== 0;
+}
+
+function blankBitmap(width: number, height: number): Bitmap {
+  const bytesPerLine = Math.ceil(width / 8);
+  return { width, height, bytesPerLine, data: Buffer.alloc(bytesPerLine * height) };
+}
+
+/**
+ * 给插画加细边框。一张裸方图直接贴在纸上很散，加框后成为独立的"图版"，
+ * 与文字块形成清晰的图/文分区。
+ */
+export function framedImage(bmp: Bitmap, pad = 12, thickness = 3): Bitmap {
+  const width = bmp.width + pad * 2;
+  const height = bmp.height + pad * 2;
+  const out = blankBitmap(width, height);
+  for (let t = 0; t < thickness; t++) {
+    for (let x = t; x < width - t; x++) {
+      setBit(out, x, t);
+      setBit(out, x, height - 1 - t);
+    }
+    for (let y = t; y < height - t; y++) {
+      setBit(out, t, y);
+      setBit(out, width - 1 - t, y);
+    }
+  }
+  for (let y = 0; y < bmp.height; y++) {
+    for (let x = 0; x < bmp.width; x++) {
+      if (getBit(bmp, x, y)) setBit(out, x + pad, y + pad);
+    }
+  }
+  return out;
+}
+
+/** 主分隔线：双细线，比单根粗线更有票据质感 */
+export function doubleRule(width = PRINT_WIDTH, gap = 8, thickness = 2): Bitmap {
+  const out = blankBitmap(width, thickness * 2 + gap);
+  for (let x = 0; x < width; x++) {
+    for (let t = 0; t < thickness; t++) {
+      setBit(out, x, t);
+      setBit(out, x, out.height - 1 - t);
+    }
+  }
+  return out;
+}
+
 /** 预置插画（MVP 用，见 assets/presets/；图片生成接入后替换为模型出图） */
-export function presetImageBitmap(actIndex: number): Bitmap | null {
+export function presetImageBitmap(actIndex: number, targetWidth = config.print.imageSizePx): Bitmap | null {
   const file = path.join(ASSETS_DIR, 'presets', `act-${actIndex}.png`);
   if (!fs.existsSync(file)) return null;
   try {
-    return pngToBitmap(fs.readFileSync(file));
+    return pngToBitmap(fs.readFileSync(file), targetWidth);
   } catch {
     return null;
   }
@@ -223,16 +357,21 @@ export function buildReceiptBuffer(opts: ReceiptOptions): Buffer {
   const push = (b: Buffer): void => {
     parts.push(b);
   };
+  const imageSize = config.print.imageSizePx;
 
   push(ESC.init());
+
+  /* 标题区：居中加粗 + 双线，作为版面顶端 */
   push(ESC.align(1));
   push(ESC.bold(true));
   push(textToEscPos(opts.title));
   push(ESC.bold(false));
   push(feedLines(1));
-  push(bitmapToRasterCmd(dashedLineBitmap()));
-  push(feedLines(1));
+  push(bitmapToRasterCmd(doubleRule(PRINT_WIDTH)));
+  push(feedLines(2));
 
+  /* 三幕：标签 → 正文 → 图版。插画缩到 imageSize 并加框，让它退成"图版"
+     而不是占满纸宽的主角，文字重新成为小票主体。 */
   push(ESC.align(0));
   const labels = ['第一幕 · 滤镜', '第二幕 · 代价', '第三幕 · 意外'];
   opts.scenes.forEach((scene, i) => {
@@ -243,26 +382,28 @@ export function buildReceiptBuffer(opts: ReceiptOptions): Buffer {
       push(textToEscPos(line));
     }
     push(feedLines(1));
-    const bmp = presetImageBitmap(i + 1);
+    const bmp = presetImageBitmap(i + 1, imageSize);
     if (bmp) {
       push(ESC.align(1));
-      push(bitmapToRasterCmd(bmp));
+      push(bitmapToRasterCmd(framedImage(bmp)));
       push(ESC.align(0));
       push(feedLines(1));
     }
+    // 幕与幕之间用细虚线；最后一幕之后由主双线收尾
     if (i < opts.scenes.length - 1) {
       push(bitmapToRasterCmd(dashedLineBitmap(PRINT_WIDTH, 4, 6, 1)));
       push(feedLines(1));
     }
   });
 
-  push(bitmapToRasterCmd(dashedLineBitmap()));
+  /* 结尾区：双线 → 居中加粗结尾 → 免责声明 → 二维码 */
+  push(bitmapToRasterCmd(doubleRule(PRINT_WIDTH)));
   push(feedLines(1));
   push(ESC.align(1));
   push(ESC.bold(true));
   for (const line of wrapText(opts.ending, 24)) push(textToEscPos(line));
   push(ESC.bold(false));
-  push(feedLines(1));
+  push(feedLines(2));
   for (const line of wrapText(opts.disclaimer, 26)) push(textToEscPos(line));
   push(feedLines(1));
   push(textToEscPos('扫码查看这条没走的路'));

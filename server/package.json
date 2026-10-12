@@ -10,13 +10,16 @@
     "build": "tsc -p tsconfig.json",
     "serve": "node dist/index.js",
     "mock-device": "tsx src/device/mockDevice.ts",
+    "print-service": "tsx src/device/printService.ts",
     "img2bit": "tsx src/device/img2bit.ts",
     "receipt-preview": "tsx scripts/previewReceipt.ts",
+    "receipt-html": "tsx scripts/receiptToHtml.ts",
     "browser-check": "tsx scripts/browserCheck.ts",
     "smoke": "tsx scripts/smoke.ts",
     "capsule-check": "tsx scripts/capsuleCheck.ts",
     "try-llm": "tsx scripts/tryLlm.ts",
-    "make-preset-images": "tsx scripts/makePresetImages.ts"
+    "make-preset-images": "tsx scripts/makePresetImages.ts",
+    "sample-receipt": "tsx scripts/makeSampleReceipt.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

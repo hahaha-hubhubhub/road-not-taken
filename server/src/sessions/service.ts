@@ -152,7 +152,11 @@ export function startGeneration(sessionId: string, text: string, apiKey?: string
     });
 }
 
-/** 动作完成 → 进入打印（via=device 由真实硬件触发；via=demo 为无硬件演示） */
+/**
+ * 动作完成 → 进入打印。
+ * via=device 由真实硬件上报；via=demo 由手机完成翻转（B 路）或无硬件演示。
+ * 是否授权打印取决于当前是否有打印服务在线，与 via 无关。
+ */
 export function completeAction(sessionId: string, via: 'device' | 'demo'): boolean {
   const s = sessionStore.get(sessionId);
   if (!s || s.state !== 'await_action') return false;
@@ -168,7 +172,10 @@ export function completeAction(sessionId: string, via: 'device' | 'demo'): boole
     action: s.action ? { ...s.action, done: s.action.moves.length } : undefined,
   });
 
-  if (via === 'device') {
+  // 有打印服务在线就授权它出票；纯粹无设备演示才用定时器兜底。
+  // 不能按 via 判断：B 路由手机完成翻转（走 demo 入口），此时打印服务仍在线，
+  // 必须收到 print_authorized 才会真正写打印机。
+  if (gateway.hasDevice()) {
     gateway.authorizePrint(sessionId);
   } else {
     setTimeout(() => {
