@@ -36,6 +36,26 @@ export const config = {
     reasoningEffort: (process.env.STEPFUN_REASONING_EFFORT ?? 'medium') as 'low' | 'medium' | 'high',
   },
 
+  /**
+   * 图片生成（AI-03）。gpt-image-2 走 models-proxy 网关，与文本用的 StepFun
+   * 主站不是同一个 base URL，所以单独一组配置。
+   *
+   * Key 只从 .env 读，不要写进代码或提交。未配置时生图自动关闭，
+   * 手机上回落预置图，不影响主流程。
+   *
+   * 实测（2026-10-12）：单张约 25s，三张并行约 34s。timeoutMs 按单张的
+   * 3 倍余量给，因为并行时网关排队可能更慢。
+   */
+  image: {
+    apiKey: process.env.IMAGE_API_KEY ?? '',
+    baseUrl: (process.env.IMAGE_BASE_URL ?? 'https://models-proxy.stepfun-inc.com/v1').replace(/\/+$/, ''),
+    model: process.env.IMAGE_MODEL ?? 'gpt-image-2',
+    timeoutMs: num(process.env.IMAGE_TIMEOUT_MS, 90000),
+    get enabled(): boolean {
+      return Boolean(this.apiKey);
+    },
+  },
+
   /** 显式开启时用预生成案例跑通流程（断网演示）；没有 Key 时不再是静默降级，而是报错提示 */
   mockLlm: bool(process.env.MOCK_LLM),
   /** 服务端 .env 是否配置了 Key */

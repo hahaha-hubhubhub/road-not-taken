@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { CANONICAL_DISCLAIMER, SHARE_BASE, config } from '../config.js';
 import { gateway } from '../device/gateway.js';
 import { DEMO_CASES } from '../llm/demoCases.js';
+import { imagePath } from '../llm/image.js';
 import { sessionStore } from './store.js';
 import {
   completeAction,
@@ -124,6 +125,32 @@ apiRouter.get('/sessions/:id/result', (req: Request, res: Response) => {
     return;
   }
   res.json(getPublicView(session));
+});
+
+/**
+ * 生成图（AI-03）。仅在图片已生成时返回，否则 404 让前端回落预置图。
+ * 图片不入小票（胶囊内芯只装文字，见 CAPSULE_PRD C-04），只在手机端展示。
+ */
+apiRouter.get('/sessions/:id/images/:index', (req: Request, res: Response) => {
+  const session = sessionStore.get(req.params.id);
+  if (!session) {
+    res.status(404).end();
+    return;
+  }
+  const index = Number(req.params.index);
+  if (!Number.isInteger(index) || index < 1 || index > 3) {
+    res.status(400).json({ error: 'index 必须是 1-3' });
+    return;
+  }
+  const file = imagePath(session.id, index);
+  if (!file) {
+    // 未生成 / 生成失败 / 已过期：让前端继续用预置图
+    res.status(404).end();
+    return;
+  }
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.sendFile(file);
 });
 
 /**
