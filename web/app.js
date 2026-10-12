@@ -434,9 +434,16 @@
 
     flip = RNTFlip.createFlipDetector(s.action.moves);
 
-    flip.onProgress((done, total, move) => {
+    flip.onProgress(async (done, total, move) => {
       flipDone = done;
       paintFlipProgress(done, total, move);
+      // 逐格上报：服务端据此推进进度，全部完成时授权打印。
+      // 无设备接单时后端可能还没这个 session 的状态机分支，失败不影响本地显示。
+      try {
+        await api(`/sessions/${state.sessionId}/flip-progress`, { method: 'POST', body: { done } });
+      } catch (_) {
+        /* 由 completeFlipAndContinue 兜底 */
+      }
     });
 
     flip.onWrong((actual, expected, done) => {
@@ -462,8 +469,20 @@
     });
 
     flip.onComplete(async () => {
-      // 手机完成全部动作 → 走与服务端真机同一条完成入口
-      await completeFlipAndContinue();
+      // 最后一格的 flip-progress 已让服务端授权打印；这里只负责切视图。
+      // 后端拒绝时（例如无设备接单）回落到演示入口。
+      if (!state.sessionId) return;
+      try {
+        await api(`/sessions/${state.sessionId}/flip-progress`, {
+          method: 'POST',
+          body: { done: flip.total },
+        });
+      } catch (_) {
+        await completeFlipAndContinue();
+        return;
+      }
+      teardownFlip();
+      showPrinting();
     });
   }
 

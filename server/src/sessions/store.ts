@@ -133,6 +133,14 @@ class SessionStore {
       (s.state === 'await_action' || s.state === 'printing' || s.state === 'encapsulating'));
   }
 
+  /**
+   * 等待动作中、但还没有任何设备接单的 session。
+   * 用于设备上线时补发任务——现场常见手机先出结果、打印服务后启动。
+   */
+  listAwaitingUnassigned(): SessionRecord[] {
+    return [...this.map.values()].filter((s) => s.state === 'await_action' && !s.deviceId);
+  }
+
   get size(): number {
     return this.map.size;
   }
