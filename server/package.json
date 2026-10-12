@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.json",
     "serve": "node dist/index.js",
     "mock-device": "tsx src/device/mockDevice.ts",
+    "print-service": "tsx src/device/printService.ts",
     "img2bit": "tsx src/device/img2bit.ts",
     "receipt-preview": "tsx scripts/previewReceipt.ts",
     "browser-check": "tsx scripts/browserCheck.ts",
