@@ -1,6 +1,6 @@
 # 《没走的路》胶囊版 PRD v0.2（评审草案）
 
-> 2026-10-12；承接 [原 PRD v0.1](PRD.md)。它不是原小票功能的已完成声明。软硬件差异、评审阻断项见 [PRODUCT_REVIEW.md](PRODUCT_REVIEW.md)。
+> 2026-10-12；承接 [原 PRD v0.1](PRD.md)。它不是原小票功能的已完成声明。软硬件差异、评审阻断项见 [PRODUCT_REVIEW.md](PRODUCT_REVIEW.md)。竞品驱动的下一迭代方向见 [DIFFERENTIATION.md](DIFFERENTIATION.md)，尚未合入本版需求。
 
 ## 一、为什么做
 
