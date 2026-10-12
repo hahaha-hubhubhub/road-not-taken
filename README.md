@@ -61,3 +61,24 @@ npm run try-llm -- "如果我当时……" medium 8000   # 调试 prompt 与耗�
 
 详细进度、验证数据与延迟实测见 [docs/PROGRESS.md](docs/PROGRESS.md)。
 
+
+## 后悔药网页设计预览
+
+启动现有服务后访问 <http://localhost:8787/regret-remedy/>。
+该页面是独立的手机交互设计原型，原有首页与设备流程仍可从 `/` 使用。
+
+体验顺序：点击药瓶 → 药丸弹出 → 输入遗憾 → 吞下药丸 → 三幕平行人生 →
+拆开另一条时间线里的自己寄来的信。支持重新开始与保存文字信件。
+
+目前为纯前端演示，按照关键词选择预写故事，**未调用模型，也未接入实体硬件**。
+下一步需要将三幕和信件接入真实生成接口，验证输入相关性和硬件动作。
+
+无需安装依赖也可以单独预览：
+
+```bash
+python3 -m http.server 8788 --bind 127.0.0.1 --directory web/regret-remedy
+```
+
+网页源文件：`web/regret-remedy/index.html`、`style.css`、`app.js`。
+修改后先执行 `node --check web/regret-remedy/app.js`，再在浏览器验证完整流程。
+仓库协作与上传请遵循 [AGENTS.md](AGENTS.md)。

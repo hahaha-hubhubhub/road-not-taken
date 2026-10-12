@@ -7,7 +7,7 @@
 - GitHub 仓库：`https://github.com/hahaha-hubhubhub/road-not-taken`
 - Git SSH 远程：`git@github.com:hahaha-hubhubhub/road-not-taken.git`
 - 默认分支：`main`
-- 本地项目目录：`/Users/jyxc-dz-0100172/Documents/road-not-taken`
+- 本地项目目录：以当前 Git checkout 的仓库根目录为准（`git rev-parse --show-toplevel`）。不要依赖其他协作者的电脑路径。
 
 ## 上传流程
 
@@ -48,3 +48,11 @@ git push origin main
 - 产品说明：[README.md](README.md)
 - 产品需求：[docs/PRD.md](docs/PRD.md)
 
+
+## 后悔药网页原型
+
+- 源码位于 `web/regret-remedy/`，预览地址为 `/regret-remedy/`。
+- 当前原型使用预写故事；保持“未调用模型”的说明，直到真实接入并验证成功。
+- 页面修改后执行 `node --check web/regret-remedy/app.js`，并验证取药、输入、三幕、拆信和重新开始。
+- ZIP 解压目录没有 Git 历史，不能直接上传。先将本次变更应用到已认证的 Git clone；不要创建无关历史覆盖远程。
+- 上传认证只在本机 Git 凭据管理工具中设置，不要将凭据写入项目或聊天。
