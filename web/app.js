@@ -43,6 +43,7 @@
     hasServerKey: false,
     mockLlm: false,
     serverModel: '',
+    imageCatchUp: null,
   };
 
   /* ---------------- 内置演示案例（无后端时也能看） ---------------- */
@@ -135,7 +136,9 @@
   /* ---------------- 视图切换 ---------------- */
   const VIEWS = ['input', 'generating', 'waiting', 'printing', 'encapsulating', 'result'];
   function showView(name) {
-    // 离开等待视图时必须停掉传感器监听，否则手势会跨 session 串味
+    // 离开结果视图时停掉补图轮询；离开等待视图时停掉传感器监听，
+    // 否则手势和轮询都会跨 session 串味。
+    if (name !== 'result') clearInterval(state.imageCatchUp);
     if (name !== 'waiting' && flip) teardownFlip();
     VIEWS.forEach((v) => $(`view-${v}`).classList.toggle('hidden', v !== name));
     window.scrollTo(0, 0);
@@ -356,6 +359,8 @@
           state.result = s;
           renderResult(s);
           showView('result');
+          // 生图是后台并行的，done 时可能还没跑完；补一个短轮询把图换上
+          if (s.imageStatus !== 'ready' && s.kind !== 'care') startImageCatchUp();
         } else if (s.state === 'error' && state.lastState !== 'error') {
           state.lastState = 'error';
           stopPoll();
@@ -548,6 +553,32 @@
   /* ---------------- 结果渲染 ---------------- */
   const relImg = (url) => String(url || '').replace(/^\//, '');
 
+  /**
+   * 补图轮询：done 时生图可能还在跑（三张并行约 34s，用户翻转只要几秒）。
+   * 每 2.5s 查一次，拿到就绪或超过 60s 就停，避免无谓请求。
+   */
+  function startImageCatchUp() {
+    clearInterval(state.imageCatchUp);
+    let elapsed = 0;
+    state.imageCatchUp = setInterval(async () => {
+      elapsed += 2500;
+      if (!state.sessionId || elapsed > 60000) {
+        clearInterval(state.imageCatchUp);
+        return;
+      }
+      try {
+        const s = await api(`/sessions/${state.sessionId}`, { timeout: 8000 });
+        state.result = s;
+        if (s.imageStatus === 'ready') {
+          clearInterval(state.imageCatchUp);
+          renderResult(s);   // 用生成图重绘
+        }
+      } catch (_) {
+        clearInterval(state.imageCatchUp);
+      }
+    }, 2500);
+  }
+
   function renderResult(s) {
     const note = $('delivery-note');
     note.textContent = s.kind === 'care' ? '这一次先不讲笑话，也不出胶囊。请照顾好自己。'
@@ -559,12 +590,21 @@
     const meta = `RNT-${String(s.sessionId || '').slice(0, 6).toUpperCase()} · ${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     const acts = (s.acts || [])
       .map(
-        (a) => `
+        (a) => {
+          // AI-03：图片就绪的幕用生成图，其余回落预置图。onerror 兜底，
+          // 避免生图刚好失败或已过期时出现破图。
+          const ready = s.imageStatus === 'ready' && (s.imageReadyActs || []).includes(a.index);
+          const genUrl = ready ? `${state.apiBase}/api/sessions/${s.sessionId}/images/${a.index}` : '';
+          const preset = relImg(a.imageUrl);
+          const src = genUrl || preset;
+          const fallback = genUrl ? ` onerror="this.onerror=null;this.src='${preset.replace(/'/g, "\\'")}'"` : '';
+          return `
         <div class="act">
           <div class="act-label">第${CN_NUM[a.index - 1] || a.index}幕 · ${escapeHtml(a.name)}</div>
-          <img src="${escapeHtml(relImg(a.imageUrl))}" alt="第${a.index}幕插画" />
+          <img src="${escapeHtml(src)}"${fallback} alt="第${a.index}幕插画" />
           <p>${escapeHtml(a.caption)}</p>
-        </div>`,
+        </div>`;
+        },
       )
       .join('<div class="dashed"></div>');
 

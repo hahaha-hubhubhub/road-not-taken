@@ -50,6 +50,14 @@ export interface SessionRecord {
   generateMs?: number;
   /** 演示模式（无硬件模拟）完成 */
   simulated?: boolean;
+  /**
+   * 图片生成状态（AI-03）。与文本生成并行启动，不阻塞状态机。
+   * pending → 前端显示预置图；ready → 按 imageUrl 取生成图。
+   */
+  imageStatus?: 'pending' | 'ready' | 'failed';
+  /** 已成功生成的幕次，如 [1,3]；缺失的幕前端回落预置图 */
+  imageReadyActs?: number[];
+  imageMs?: number;
 }
 
 function newId(): string {
