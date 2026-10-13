@@ -190,8 +190,15 @@ apiRouter.post('/sessions/:id/flip-progress', (req: Request, res: Response) => {
     return;
   }
 
-  // 全部完成 → 走与设备上报同一条完成入口，由服务端授权打印
-  completeAction(session.id, 'device');
+  // 全部完成。有设备接单时走设备入口（由服务端授权打印）；
+  // 没有设备时这就是一次普通演示，回落 demo 入口，否则动作完成了状态却不动，
+  // 前端会一直停在"打印中"。
+  const via = session.deviceId ? 'device' : 'demo';
+  const ok = completeAction(session.id, via);
+  if (!ok) {
+    res.status(409).json({ error: '完成动作失败，请重试', state: session.state });
+    return;
+  }
   res.json(getPublicView(sessionStore.get(session.id)!));
 });
 
