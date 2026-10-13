@@ -13,7 +13,8 @@
 <button class="bottle-button" id="bottle" aria-label="打开药瓶，取出一颗后悔药">
 <span class="bottle" aria-hidden="true"><span class="cap"></span><span class="neck"></span><span class="glass"><span class="label"><span class="label-en">REGRET REMEDY</span><strong>后悔药</strong><span class="label-rule"></span><span class="label-small">给所有「如果当时」</span><span class="label-bottom">1 CAPSULE / 1 OTHER LIFE</span></span></span></span>
 </button>
-<p class="instruction" id="bottle-hint">轻点药瓶，取一颗。</p>
+<span class="falling-pill capsule" aria-hidden="true"><i></i><i></i></span>
+<div class="take-instruction"><p class="instruction" id="bottle-hint" role="status">摇一摇，取一颗。也可以轻点药瓶。</p><button class="quiet" id="enable-shake" hidden>开启摇一摇 ↗</button></div>
 </section>
 <section class="screen pill-screen" id="pill-screen" hidden aria-labelledby="pill-title"><p class="aside">一次未发生的可能。</p><button id="pill" class="pill-button" aria-label="点击药丸，写下遗憾"><span class="capsule"><i></i><i></i></span></button><h2 id="pill-title">这一颗，留给哪个如果？</h2><p class="instruction">点它，说说那件事。</p></section>
 <section class="screen input-screen" id="input-screen" hidden aria-labelledby="input-title"><div class="mini-pill" aria-hidden="true"></div><p class="aside">不用整理得很完美。</p><h2 id="input-title">如果当时我……</h2><form id="regret-form"><label class="sr-only" for="regret">你想重新看看的选择</label><textarea id="regret" maxlength="1000" rows="3" placeholder="去了另一座城市，&#10;学了自己喜欢的专业，&#10;或者，把那句话说出口。" required></textarea><div class="input-meta"><span>可以补充地点、当时的选择、你舍不得的事。</span><span id="counter">0 / 1000</span></div><p id="error" role="alert" hidden></p><button class="action" type="submit">吞下这颗后悔药 <span>↗</span></button></form><button class="quiet" id="demo-choice" hidden>查看预写演示案例</button><a class="quiet" href="/">模型设置 ↗</a><button class="quiet back" data-back="pill-screen">先放回去</button></section>
@@ -24,5 +25,5 @@
 <section class="screen input-screen" id="care-screen" hidden><h2>今天，先照顾现在的你。</h2><p class="narrative" id="care-copy"></p><button class="quiet" id="care-again">重新开始</button></section>
 </main>
 <footer><span>一场虚构的平行人生体验</span><span id="generation-status" role="status">准备好写下你的那个如果</span></footer>
-<script src="app.js"></script>
+<script src="shake.js"></script><script src="app.js"></script>
 </body></html>
