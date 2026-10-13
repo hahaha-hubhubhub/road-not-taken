@@ -26,8 +26,15 @@ const PRINT_WIDTH = config.print.widthPx;
 /* PNG → 1-bit 位图                                                    */
 /* ------------------------------------------------------------------ */
 
-/** 灰度 + 双线性缩放 + Floyd–Steinberg 抖动 + 位打包 */
-export function pngToBitmap(pngBuffer: Buffer, targetWidth = PRINT_WIDTH): Bitmap {
+/**
+ * 灰度 + 双线性缩放 + Floyd–Steinberg 抖动。
+ *
+ * 抽出来共享：位图打包（打印用）和「热敏化」PNG（手机端预览用）走同一条管线，
+ * 保证屏幕上看到的和纸上出来的是一致的——包括抖动的颗粒感。
+ *
+ * @returns 与目标尺寸等长的灰度数组，抖动后每点已是 0（黑）或 255（白）
+ */
+export function toDitheredGray(pngBuffer: Buffer, targetWidth = PRINT_WIDTH): { gray: Float32Array; width: number; height: number } {
   const png = PNG.sync.read(pngBuffer);
   const w0 = png.width;
   const h0 = png.height;
@@ -80,6 +87,12 @@ export function pngToBitmap(pngBuffer: Buffer, targetWidth = PRINT_WIDTH): Bitma
     }
   }
 
+  return { gray, width, height };
+}
+
+/** 灰度 + 双线性缩放 + Floyd–Steinberg 抖动 + 位打包 */
+export function pngToBitmap(pngBuffer: Buffer, targetWidth = PRINT_WIDTH): Bitmap {
+  const { gray, width, height } = toDitheredGray(pngBuffer, targetWidth);
   const bytesPerLine = Math.ceil(width / 8);
   const data = Buffer.alloc(bytesPerLine * height);
   for (let y = 0; y < height; y++) {
@@ -90,6 +103,27 @@ export function pngToBitmap(pngBuffer: Buffer, targetWidth = PRINT_WIDTH): Bitma
     }
   }
   return { width, height, bytesPerLine, data };
+}
+
+/**
+ * 「热敏化」：把图片转成看起来像热敏打印输出的 PNG。
+ *
+ * 走的是和打印完全相同的管线（灰度 → 双线性缩放 → Floyd–Steinberg 抖动 → 纯黑白），
+ * 所以手机上看到的颗粒感和纸上出来的是一致的。生成图直接显示会太"数码"，
+ * 和实体小票对不上；用这个之后，屏幕预览就是出纸效果的预览。
+ *
+ * @param targetWidth 目标宽度（点）。默认用打印插画尺寸，保证与纸上同分辨率
+ */
+export function thermalizePng(pngBuffer: Buffer, targetWidth = config.print.imageSizePx): Buffer {
+  const { gray, width, height } = toDitheredGray(pngBuffer, targetWidth);
+  const out = new PNG({ width, height });
+  for (let i = 0; i < width * height; i++) {
+    const black = gray[i] < 128;
+    const j = i << 2;
+    out.data[j] = out.data[j + 1] = out.data[j + 2] = black ? 0 : 255;
+    out.data[j + 3] = 255;
+  }
+  return PNG.sync.write(out);
 }
 
 /* ------------------------------------------------------------------ */

@@ -214,6 +214,9 @@ button:active { transform: scale(0.98); }
 .act img {
   width: 100%; display: block; border-radius: 4px; margin: 8px 0;
   filter: contrast(1.05); background: #fff;
+  /* 热敏图是 256 点的低位图，放大时必须 nearest-neighbor，
+     插值平滑会把抖动的颗粒感抹掉，就和出纸效果对不上了 */
+  image-rendering: pixelated;
 }
 .act-img-pending {
   margin: 8px 0; padding: 30px 12px; text-align: center;
