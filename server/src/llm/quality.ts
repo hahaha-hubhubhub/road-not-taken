@@ -9,8 +9,8 @@ export function checkStoryQuality(input: string, story: Story): string[] {
   else if (story.letter.length < 100) errors.push('来信过短，请回扣具体情节并承认用户在意的东西');
   if (!anchors.length) errors.push('缺少来自输入的具体锚点');
   for (const anchor of anchors) {
-    if (!input.includes(anchor)) errors.push('锚点必须逐字来自用户原文');
-    if (!text.includes(anchor)) errors.push('锚点未在实际正文或信中兑现');
+    if (!input.includes(anchor)) errors.push(`锚点 ${JSON.stringify(anchor)} 必须逐字来自用户原文，请改选原文里的具体词`);
+    if (!text.includes(anchor)) errors.push(`锚点 ${JSON.stringify(anchor)} 未在实际正文或信中兑现，请将这个词逐字自然写入相关幕的 detail 或 letter；同义改写不通过校验`);
     if (/^(如果|当时|自己|那个|现在|后来|人生)$/.test(anchor)) errors.push('锚点过于空泛，请选具体行动、愿望或事物');
   }
   if (story.scenes.some(s => !s.heading)) errors.push('缺少取自具体对白或动作的幕标题');
