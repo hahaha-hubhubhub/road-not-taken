@@ -652,6 +652,7 @@
         : '<div class="receipt-foot">演示模式 · 未连接本地服务</div>';
 
     $('receipt').innerHTML = `
+      ${s.degraded ? '<div class="degraded-banner">本次是预生成演示案例，不是根据你的输入实时生成的<br><span>' + escapeHtml(s.note || '模型未返回实时结果') + '</span></div>' : ''}
       <div class="receipt-title">${escapeHtml(s.title || '另一条路')}${s.degraded ? '<span class="tag-degraded">演示案例</span>' : ''}</div>
       <div class="receipt-meta">${meta}</div>
       <div class="dashed"></div>

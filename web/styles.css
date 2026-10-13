@@ -236,6 +236,13 @@ button:active { transform: scale(0.98); }
   display: inline-block; font-family: var(--font-mono); font-size: 10px; color: var(--accent);
   border: 1px solid currentColor; border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: middle;
 }
+/* 降级横幅：预生成案例必须一眼可见，不能只靠标题旁的小标签——
+   用户看到与输入无关的故事却以为在实时生成，比报错更糟 */
+.degraded-banner {
+  background: #fff4e5; color: #8a4b00; border: 1px solid #e8a33d; border-radius: 6px;
+  padding: 10px 12px; font-size: 12px; line-height: 1.6; margin-bottom: 14px; text-align: left;
+}
+.degraded-banner span { color: #a06a20; font-size: 11px; font-family: var(--font-mono); }
 
 .actions { display: flex; flex-direction: column; gap: 10px; }
 

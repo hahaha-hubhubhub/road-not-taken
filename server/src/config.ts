@@ -26,19 +26,29 @@ export const config = {
     apiKey: process.env.STEPFUN_API_KEY ?? '',
     baseUrl: (process.env.STEPFUN_BASE_URL ?? 'https://api.stepfun.com/v1').replace(/\/+$/, ''),
     model: process.env.STEPFUN_MODEL ?? 'step-5-preview',
-    maxTokens: num(process.env.STEPFUN_MAX_TOKENS, 4000),
-    timeoutMs: num(process.env.STEPFUN_TIMEOUT_MS, 90000),
     /**
-     * 推理强度。实测（2026-10-12，models-proxy 网关，完整三幕 prompt）：
+     * 必须留够思考额度。实测（2026-10-13，models-proxy，完整三幕 prompt）：
+     * 单次 completion 在 4500-7200 token 之间，绝大部分是思考，
+     * 正文只有约 1300-1460 字符（约 600 token）。
      *
-     *   medium + max_tokens 8000 → 65s   三幕完整
-     *   medium + max_tokens 4000 → 46s   三幕完整
-     *   low    + max_tokens 4000 → 33s   三幕完整   ← 当前默认
-     *   low    + max_tokens 2000 → 37s   正文被截断，不可用
+     *   max_tokens 4000 → 74s，finish_reason=length，**正文为空**（不可用）
+     *   max_tokens 8000 → 54-197s，正文完整（当前默认）
      *
-     * 注意 models-proxy 上 reasoning_tokens 恒为 0，思考量看不出来，
-     * 但 effort 确实影响耗时与质量。max_tokens 不要低于 4000：2000 会截断正文。
-     * 若现场网络差，用 low + 4000；若追求文案质量且不赶时间，可调回 medium。
+     * 早前一份「low + 4000 → 33s 且完整」的实测不可复现，已作废：
+     * 模型的思考长度波动很大，4000 会被吃光导致返回空内容。
+     * 截断时代码会自动加额 1.5 倍重试（上限 12000），所以 8000 是起点不是终点。
+     */
+    maxTokens: num(process.env.STEPFUN_MAX_TOKENS, 8000),
+    /**
+     * 超时。实测完整 prompt 的延迟是 77-129s（直连网关 5 次采样，中位约 92s），
+     * SDK 路径观察到过 197s。早前 60s 会导致绝大多数请求被判超时并降级成
+     * 演示案例——用户看到与输入无关的故事却以为在实时生成。
+     * 150s 覆盖采样到的绝大多数情况；真挂了再由降级兜底。
+     */
+    timeoutMs: num(process.env.STEPFUN_TIMEOUT_MS, 150000),
+    /**
+     * 推理强度。low 已是该网关支持的最低档；网关上文本模型只有
+     * step-5-preview:stepfun 一个，没有更快的可换。
      */
     reasoningEffort: (process.env.STEPFUN_REASONING_EFFORT ?? 'low') as 'low' | 'medium' | 'high',
   },
