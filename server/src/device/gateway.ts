@@ -4,6 +4,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { bus } from '../bus.js';
 import { SHARE_BASE } from '../config.js';
 import { sessionStore, type SessionRecord } from '../sessions/store.js';
+import { generatedImageBitmaps } from '../llm/image.js';
 import { buildCapsuleInsertBuffer, buildReceiptBuffer } from './escpos.js';
 import type { DeviceToServer, ServerToDevice } from './protocol.js';
 
@@ -207,21 +208,26 @@ export class DeviceGateway {
   }
 
   /** 下发打印任务；返回是否真的发给了设备 */
+  /**
+   * 构建并下发小票任务。
+   *
+   * 生图是异步的（三张并行约 30s），文本完成时通常还没有图，所以这里先用
+   * 「已有生成图 + 预置插画兜底」构建一版下发，让设备尽早进入等待动作状态；
+   * 图就绪后由 updateTaskImages() 用带图的版本替换。绝不为等图而阻塞流程。
+   */
   dispatchTask(session: SessionRecord): boolean {
     const conn = [...this.conns.values()].find((c) =>
       c.ws.readyState === WebSocket.OPEN && c.state === 'idle' && sessionStore.activeForDevice(c.deviceId, c.connectionKey).length === 0);
     if (!conn || !session.story) return false;
     const delivery = conn.capsuleCapable ? 'capsule' : 'receipt';
-    const options = {
-      title: session.story.title,
-      scenes: session.story.scenes,
-      ending: session.story.ending,
-      disclaimer: session.story.disclaimer ?? '',
-      shareUrl: session.shareUrl ?? SHARE_BASE,
-    };
+    // 胶囊内芯只装文字（CAPSULE_PRD C-04：纸带要卷进 ≥65mm 胶囊，塞三张图会过长）；
+    // 小票交付才上图。
+    const bitmaps = delivery === 'receipt' && session.imageReadyActs?.length
+      ? generatedImageBitmaps(session.id, session.imageReadyActs)
+      : undefined;
     const receipt = delivery === 'capsule'
-      ? buildCapsuleInsertBuffer({ ...options, sessionId: session.id })
-      : buildReceiptBuffer(options);
+      ? buildCapsuleInsertBuffer({ ...this.optionsOf(session), sessionId: session.id })
+      : buildReceiptBuffer({ ...this.optionsOf(session), bitmaps });
     this.send(conn, {
       type: 'task',
       sessionId: session.id,
@@ -240,6 +246,58 @@ export class DeviceGateway {
       delivery,
     });
     sessionStore.patch(session.id, { deviceId: conn.deviceId, deviceConnectionKey: conn.connectionKey, delivery });
+    return true;
+  }
+
+  /** 小票排版参数（文字与分享链接），图由调用方按需附加 */
+  private optionsOf(session: SessionRecord) {
+    return {
+      title: session.story!.title,
+      scenes: session.story!.scenes,
+      ending: session.story!.ending,
+      disclaimer: session.story!.disclaimer ?? '',
+      shareUrl: session.shareUrl ?? SHARE_BASE,
+    };
+  }
+
+  /**
+   * 图就绪后用带图的版本替换已下发的任务。
+   *
+   * 复用 task 消息：设备收到同一 sessionId 的 task 时替换待打印内容即可，
+   * 不需要新协议字段。若任务已被消费（正在打印或已完成）则忽略——
+   * 那一刻再用新字节流会打到一半出乱子。
+   */
+  updateTaskImages(session: SessionRecord): boolean {
+    if (!session.story || session.delivery !== 'receipt') return false;
+    if (!session.deviceId || !this.isDeviceOnline(session.deviceId, session.deviceConnectionKey)) return false;
+    // 只有还没开始打印才能换内容
+    if (session.state !== 'await_action' && session.state !== 'printing') return false;
+
+    const conn = [...this.conns.values()].find((c) => c.connectionKey === session.deviceConnectionKey);
+    if (!conn) return false;
+
+    const bitmaps = session.imageReadyActs?.length
+      ? generatedImageBitmaps(session.id, session.imageReadyActs)
+      : undefined;
+    const receipt = buildReceiptBuffer({ ...this.optionsOf(session), bitmaps });
+    this.send(conn, {
+      type: 'task',
+      sessionId: session.id,
+      title: session.story.title,
+      scenes: session.story.scenes.map((s, i) => ({
+        index: i + 1,
+        act: ['滤镜', '代价', '意外'][i] ?? `第 ${i + 1} 幕`,
+        caption: s.caption,
+        imagePrompt: s.image_prompt,
+      })),
+      ending: session.story.ending,
+      disclaimer: session.story.disclaimer ?? '',
+      shareUrl: session.shareUrl ?? SHARE_BASE,
+      widthPx: 384,
+      receiptBase64: receipt.toString('base64'),
+      delivery: 'receipt',
+    });
+    console.log(`[device] 已用生成图更新任务：${session.id}（${receipt.length} 字节）`);
     return true;
   }
 

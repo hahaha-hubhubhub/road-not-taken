@@ -133,45 +133,57 @@ export function startGeneration(
     action: undefined,
   });
 
-  void generateStory(text, apiKey, model, baseUrl)
-    .then((result) => {
-      if (sessionStore.get(sessionId)?.state !== 'generating') return; // 已取消时丢弃异步结果
-      // 危机分支只在手机端呈现安抚，不下发设备、打印或出胶囊。
-      if (result.kind === 'care') {
-        sessionStore.patch(sessionId, {
-          state: 'done', story: result.story, kind: 'care', input: undefined, doneAt: Date.now(),
-          generateMs: result.durationMs,
-        });
-        return;
-      }
-      const action = makeActionCommand();
+  void (async () => {
+    /**
+     * 页面「设置」里的 Base URL / Key / 模型优先级高于服务端 .env，这是开发便利，
+     * 但填错一个地址就会让生成失败并**静默降级成预生成案例**——用户看到的是
+     * "另一条路：大理"这类和输入无关的内容，却以为在实时生成。实测已发生过：
+     * 手机 localStorage 存了一个解析不了的主机名，每次生成都 Connection error。
+     * 所以覆盖失败时用服务端配置重试一次，保证演示不中断。
+     */
+    let result = await generateStory(text, apiKey, model, baseUrl);
+    const overridden = Boolean(apiKey || model || baseUrl);
+    if (overridden && result.degraded) {
+      console.warn(`[llm] ${sessionId} 页面覆盖配置失败（${result.note ?? '未知原因'}），回退服务端 .env 重试`);
+      result = await generateStory(text);
+    }
+
+    if (sessionStore.get(sessionId)?.state !== 'generating') return; // 已取消时丢弃异步结果
+    // 危机分支只在手机端呈现安抚，不下发设备、打印或出胶囊。
+    if (result.kind === 'care') {
       sessionStore.patch(sessionId, {
-        state: 'await_action',
-        story: result.story,
-        kind: result.kind,
-        degraded: result.degraded,
-        note: result.note,
+        state: 'done', story: result.story, kind: 'care', input: undefined, doneAt: Date.now(),
         generateMs: result.durationMs,
-        action,
-        authorizedPrint: false,
-        imageStatus: 'pending',
-        imageReadyActs: [],
-        shareUrl: `${SHARE_BASE}/#/r/${sessionId}`,
       });
-
-      // 生图与状态机并行，不阻塞进入 await_action。
-      // 用户在翻转设备那几秒里图片刚好在后台生成完，感知不到额外等待；
-      // 若图没赶上，前端继续显示预置图，不影响取票。
-      void kickOffImages(sessionId, result.story, imageModel);
-
-      const updated = sessionStore.get(sessionId);
-      if (updated) bus.emit('session:ready', updated);
-    })
-    .catch((err: unknown) => {
-      if (sessionStore.get(sessionId)?.state !== 'generating') return;
-      const message = err instanceof Error ? err.message : String(err);
-      sessionStore.patch(sessionId, { state: 'error', error: message });
+      return;
+    }
+    const action = makeActionCommand();
+    sessionStore.patch(sessionId, {
+      state: 'await_action',
+      story: result.story,
+      kind: result.kind,
+      degraded: result.degraded,
+      note: result.note,
+      generateMs: result.durationMs,
+      action,
+      authorizedPrint: false,
+      imageStatus: 'pending',
+      imageReadyActs: [],
+      shareUrl: `${SHARE_BASE}/#/r/${sessionId}`,
     });
+
+    // 生图与状态机并行，不阻塞进入 await_action。
+    // 用户在翻转设备那几秒里图片刚好在后台生成完，感知不到额外等待；
+    // 若图没赶上，前端继续显示预置图，不影响取票。
+    void kickOffImages(sessionId, result.story, imageModel);
+
+    const updated = sessionStore.get(sessionId);
+    if (updated) bus.emit('session:ready', updated);
+  })().catch((err: unknown) => {
+    if (sessionStore.get(sessionId)?.state !== 'generating') return;
+    const message = err instanceof Error ? err.message : String(err);
+    sessionStore.patch(sessionId, { state: 'error', error: message });
+  });
 }
 
 /**
@@ -198,6 +210,10 @@ async function kickOffImages(sessionId: string, story: Story, imageModel?: strin
       `[image] ${sessionId}：${result.images.length}/3 成功` +
         (result.missing.length ? `，缺第 ${result.missing.join('/')} 幕（回落预置图）` : ''),
     );
+    // 图就绪 → 用带图的版本替换已下发的任务，打印时出来的就是生成图。
+    // 任务已被消费（正在打印/已完成）时 updateTaskImages 会自己忽略。
+    const updated = sessionStore.get(sessionId);
+    if (updated) gateway.updateTaskImages(updated);
   } catch (err) {
     console.warn(`[image] ${sessionId} 生图异常：`, err instanceof Error ? err.message : err);
     sessionStore.patch(sessionId, { imageStatus: 'failed' });

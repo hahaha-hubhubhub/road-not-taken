@@ -20,6 +20,8 @@
     "try-llm": "tsx scripts/tryLlm.ts",
     "make-preset-images": "tsx scripts/makePresetImages.ts",
     "sample-receipt": "tsx scripts/makeSampleReceipt.ts",
+    "thermalize-existing": "tsx scripts/thermalizeExisting.ts",
+    "check-thermal": "tsx scripts/checkThermalRouting.ts",
     "test:story-quality": "npm run build && node --test tests/story-quality.test.mjs"
   },
   "dependencies": {

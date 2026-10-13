@@ -264,7 +264,15 @@ PRD AI-05 目标 30 秒：`medium` 下基本达标；若现场网络差，用
 
 ---
 
-### 6.4 生图（AI-03）
+### 6.5 生图（AI-03）
+
+> **编号说明**：原文档此处有两个 §6.4（「降级与安全」与「生图」），本节改为 §6.5，未删除原内容。
+> **接口修正**：下文记录的 `/scene/:n.png`、`X-Image-Source`、`STEPFUN_IMAGE_WAIT_MS`、
+> `STEPFUN_IMAGE_ENABLED` 四项在代码中并不存在，是设计草案而非实现。实际接口见下方「实现」。
+> **上图修正**：原设计把生成图只用于手机端、纸路用预置插画；现已按产品要求改为
+> **生成图必须上纸**，实际行为见下方「实现」。
+
+#### 原设计（草案，部分未实现）
 
 ```text
 三幕故事就绪
@@ -280,13 +288,41 @@ images.generate × 3 并发（同一把 Key / Base URL，模型可单独配）
 ```
 
 - 接口：`GET /api/sessions/:id/scene/:n.png`（生成图优先，响应头 `X-Image-Source: generated|preset`）
-- 打印：`pngToBitmap()`（缩放 + Floyd–Steinberg 抖动 + 1-bit 打包）→ 与文本同一套 ESC/POS 排版
-- 前端：轮询到 `imageReady` 后把「生成中」占位换成真图；出票后仍会继续轮询补图
 - 兜底：`STEPFUN_IMAGE_ENABLED=0` 可整个关掉生图；任何一张失败都不阻塞出票
-- 提示词：模型输出的 `image_prompt` 已带"黑白线描/高对比/低细节"，服务端再追加一段英文风格后缀兜底
+
+#### 实现（2026-10-13，与代码一致）
+
+```text
+三幕故事就绪
+   │  立即并发生图（不和故事串行，约 30s）
+   ▼
+images.generate × 3 并发（同一把 Key / Base URL，模型可由页面设置覆盖）
+   │  成功 → PNG 落盘 out/images/<sessionId>-<n>.png
+   │  失败 → 该幕记 missing，回落预置插画
+   ▼
+用户做翻转动作的这几秒正好用来出图
+   ▼
+图就绪 → gateway.updateTaskImages() 用带图版本替换已下发的 task
+   ▼
+动作完成 → 授权打印 → 设备打印最新收到的字节流（含生成图）
+```
+
+- **接口**：`GET /api/sessions/:id/images/:index`（`index` 为 1-3，仅在图已生成时返回，否则 404 让前端回落预置图）
+- **上图**：`generatedImageBitmaps()` 把 PNG 读成 1-bit 位图，经 `buildReceiptBuffer({ bitmaps })` 排入小票；
+  缺的幕回落 `presetImageBitmap()`。**小票字节流在文本完成时先用「预置图」构建并下发**（否则要干等 30 秒），
+  图就绪后用同一 `task` 消息替换内容——设备收到同 sessionId 的 task 就换待打印内容，
+  打印授权到达时用的是最新版本。
+- ** capsules 例外**：`delivery=capsule` 时仍只装文字内芯（CAPSULE_PRD C-04：纸带要卷进 ≥65mm 胶囊，
+  塞三张 256 点方图会过长）。只有小票交付上图。
+- **前端**：轮询到 `imageStatus=ready` 后把占位换成真图；`onerror` 兜底；出票后仍会补图轮询（60s 上限）
+- **兜底**：清空 `IMAGE_API_KEY` 即整个关掉生图；任何一张失败都不阻塞出票
+- **提示词**：模型输出的 `image_prompt` 已带"黑白线描/高对比/低细节"，服务端再追加一段英文风格后缀兜底
+  （含"画具体的人和物、禁止占位符图标/空白屏幕"——实测不约束会画出通用图片占位符号）
 
 **待验证**：`gpt-image-2` 这个模型 ID 是按你给的信息填的默认值，接上 VPN 后需用
 `GET {base}/models` 核对真实 ID（页面设置里可随时改，不用重启服务）。
+**已实测**：models-proxy 上单张约 25s、三张并行约 34s；串行会到 75s，所以必须并行。
+`reasoning_tokens` 在该网关上恒为 0，看不出思考量。
 
 ---
 

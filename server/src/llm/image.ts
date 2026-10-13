@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
+import { pngToBitmap, thermalizePng, type Bitmap } from '../device/escpos.js';
 
 export interface SceneImage {
   index: number;          // 1..3
@@ -55,11 +56,26 @@ function imageDir(): string {
   return path.resolve(process.env.PRINT_IMAGE_DIR ?? 'out/images');
 }
 
+/**
+ * 保存生成图，同时存一份「热敏化」版本。
+ *
+ * 原图（`<id>-<n>.png`）留作存档；热敏化版（`<id>-<n>.print.png`）走的是与打印
+ * 完全相同的抖动管线（灰度 → 双线性缩放 → Floyd–Steinberg → 纯黑白），
+ * 手机端展示和纸上出图都用它，保证屏幕预览就是出纸效果。
+ * 生成图直接显示会太"数码"，和实体小票对不上。
+ */
 function saveImage(sessionId: string, index: number, b64: string): string {
   const dir = imageDir();
   fs.mkdirSync(dir, { recursive: true });
+  const raw = Buffer.from(b64, 'base64');
   const file = path.join(dir, `${sessionId}-${index}.png`);
-  fs.writeFileSync(file, Buffer.from(b64, 'base64'));
+  fs.writeFileSync(file, raw);
+  try {
+    fs.writeFileSync(path.join(dir, `${sessionId}-${index}.print.png`), thermalizePng(raw, config.print.imageSizePx));
+  } catch (err) {
+    // 热敏化失败不影响主流程，imagePath 会回落到原图
+    console.warn(`[image] 第 ${index} 幕热敏化失败：`, err instanceof Error ? err.message : err);
+  }
   return file;
 }
 
@@ -177,7 +193,39 @@ export async function generateSceneImages(
 }
 
 /** 已生成图片的本地路径（供 /sessions/:id/images/:n 提供静态文件） */
-export function imagePath(sessionId: string, index: number): string | null {
+/** 原图路径（未热敏化），纸路用它，避免二次抖动 */
+export function rawImagePath(sessionId: string, index: number): string | null {
   const file = path.join(imageDir(), `${sessionId}-${index}.png`);
   return fs.existsSync(file) ? file : null;
+}
+
+/** 展示用图片路径：优先热敏化版（与出纸效果一致），没有则回落原图 */
+export function imagePath(sessionId: string, index: number): string | null {
+  const dir = imageDir();
+  const printed = path.join(dir, `${sessionId}-${index}.print.png`);
+  if (fs.existsSync(printed)) return printed;
+  const raw = path.join(dir, `${sessionId}-${index}.png`);
+  return fs.existsSync(raw) ? raw : null;
+}
+
+/**
+ * 把已生成的插画读成 1-bit 位图，供小票排版用（AI-03 上图）。
+ *
+ * 只读 imageReadyActs 里标记成功的幕，其余返回 null，由 escpos 回落预置插画。
+ * 生图是 PNG（1024×1024 彩色/线描），这里缩放到打印宽度并做 1-bit 转换，
+ * 与预置插画走同一条 pngToBitmap 管线，保证纸上效果一致。
+ */
+export function generatedImageBitmaps(sessionId: string, readyActs: number[]): (Bitmap | null)[] {
+  return [1, 2, 3].map((n) => {
+    if (!readyActs.includes(n)) return null;
+    // 用原图而非热敏化版：抖动在这里做一次就够了，二次抖动虽幂等但没必要
+    const file = rawImagePath(sessionId, n);
+    if (!file) return null;
+    try {
+      return pngToBitmap(fs.readFileSync(file), config.print.imageSizePx);
+    } catch (err) {
+      console.warn(`[image] 第 ${n} 幕转位图失败：`, err instanceof Error ? err.message : err);
+      return null;
+    }
+  });
 }

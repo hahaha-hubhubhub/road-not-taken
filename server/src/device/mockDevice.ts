@@ -70,9 +70,11 @@ ws.on('message', async (raw) => {
       break;
 
     case 'task': {
+      const isUpdate = currentSession === msg.sessionId;
       currentSession = msg.sessionId;
-      console.log(`\n[mock] ===== 收到打印任务 ${msg.sessionId} =====`);
+      console.log(`\n[mock] ===== ${isUpdate ? '任务内容已更新' : '收到打印任务'} ${msg.sessionId} =====`);
       console.log(`[mock] 交付模式：${msg.delivery}；默认不打印用户内容到终端，也不落盘`);
+      if (isUpdate) console.log('[mock] （生图就绪，小票已换成含生成图的版本）');
 
       const buffer = Buffer.from(msg.receiptBase64, 'base64');
       if (args.saveReceipt) {
