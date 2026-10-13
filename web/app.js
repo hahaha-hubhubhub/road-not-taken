@@ -479,20 +479,26 @@
     });
 
     flip.onComplete(async () => {
-      // 最后一格的 flip-progress 已让服务端授权打印；这里只负责切视图。
-      // 后端拒绝时（例如无设备接单）回落到演示入口。
+      // 最后一格的 flip-progress 让服务端授权打印。必须校验状态真的推进了——
+      // 服务端可能因设备不在线等原因拒绝（返回 409），此时不能切到打印视图，
+      // 否则会永远停在一个不会结束的界面上。
       if (!state.sessionId) return;
       try {
-        await api(`/sessions/${state.sessionId}/flip-progress`, {
+        const r = await api(`/sessions/${state.sessionId}/flip-progress`, {
           method: 'POST',
           body: { done: flip.total },
         });
+        teardownFlip();
+        if (r.state === 'printing' || r.state === 'done' || r.state === 'encapsulating') {
+          showPrinting();
+        } else {
+          // 状态没动：提示重试，不要让用户干等
+          $('action-text').textContent = '设备正忙，请再翻一次或稍候重试';
+        }
       } catch (_) {
+        // 后端拒绝（例如无设备接单）→ 回落到演示入口
         await completeFlipAndContinue();
-        return;
       }
-      teardownFlip();
-      showPrinting();
     });
   }
 
