@@ -12,23 +12,26 @@ import { CANONICAL_DISCLAIMER } from '../config.js';
 export const STORY_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'scenes', 'ending', 'disclaimer'],
+  required: ['title', 'scenes', 'ending', 'disclaimer', 'anchors', 'letter'],
   properties: {
+    anchors: { type: 'array', items: { type: 'string' }, description: '1-6 个逐字来自用户输入的具体锚点，正文须兑现' },
+    letter: { type: 'string', description: '180-320 字的平行时间线自我来信，2-4 段，回扣三幕的两个具体细节' },
     title: {
       type: 'string',
-      description: '小票标题，8-16 字，格式类似"另一条路：大理"',
+      description: '8-16 字的标题，贴合本次具体选择',
     },
     scenes: {
       type: 'array',
-      description: '固定三幕：滤镜、代价、意外，按此顺序',
+      description: '固定三幕：滤镜、代价、意外，按此顺序，连续人生',
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['caption', 'image_prompt'],
+        required: ['caption', 'image_prompt', 'detail'],
         properties: {
+          detail: { type: 'string', description: '手机端详细正文，90-160 字，最多 220 字，具体行动、对话和因果细节' },
           caption: {
             type: 'string',
-            description: '该幕正文，40-80 字，具体细节，不说教',
+            description: '该幕打印摘要，40-80 字，保留选择与因果关系',
           },
           image_prompt: {
             type: 'string',
@@ -40,7 +43,7 @@ export const STORY_JSON_SCHEMA = {
     },
     ending: {
       type: 'string',
-      description: '结尾短句，20 字以内，让人松一口气或笑一下',
+      description: '结尾短句，40 字以内，让人松一口气或笑一下',
     },
     disclaimer: {
       type: 'string',
@@ -52,11 +55,14 @@ export const STORY_JSON_SCHEMA = {
 export const RESPONSE_FORMAT_NAME = 'road_not_taken_story';
 
 export const SceneSchema = z.object({
+  detail: z.string().trim().min(70, 'detail 太短').max(220, 'detail 太长').optional(),
   caption: z.string().min(8, 'caption 太短').max(140, 'caption 太长'),
   image_prompt: z.string().min(4, 'image_prompt 太短').max(240, 'image_prompt 太长'),
 });
 
 export const StorySchema = z.object({
+  anchors: z.array(z.string().trim().min(2).max(100)).min(1).max(6).optional(),
+  letter: z.string().trim().min(80, 'letter 太短').max(800, 'letter 太长').optional(),
   title: z.string().min(2, 'title 太短').max(40, 'title 太长'),
   scenes: z.array(SceneSchema).length(3, '必须正好三幕'),
   ending: z.string().min(2, 'ending 太短').max(80, 'ending 太长'),
@@ -69,9 +75,12 @@ export type Story = z.infer<typeof StorySchema>;
 /** 服务端统一规范化：免责声明以服务端为准，保证每条结果都带 */
 export function normalizeStory(raw: Story): Story {
   return {
+    ...(raw.anchors ? { anchors: raw.anchors } : {}),
+    ...(raw.letter ? { letter: raw.letter.trim() } : {}),
     title: raw.title.trim(),
     scenes: raw.scenes.map((s) => ({
       caption: s.caption.trim(),
+      ...(s.detail ? { detail: s.detail.trim() } : {}),
       image_prompt: s.image_prompt.trim(),
     })),
     ending: raw.ending.trim(),

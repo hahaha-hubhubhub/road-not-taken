@@ -104,9 +104,22 @@ export const DEMO_CASES: DemoCase[] = [
   },
 ];
 
-/** 根据输入稳定挑选一个演示案例（同一输入总是同一案例） */
+/** 演示仅匹配明确主题；其他输入不随机塞入不相关的城市/关系。 */
 export function pickDemoCase(input: string): DemoCase {
-  let h = 0;
-  for (const ch of input) h = (h * 31 + ch.codePointAt(0)!) % 100000;
-  return DEMO_CASES[h % DEMO_CASES.length]!;
+  const matches: [string, RegExp][] = [
+    ['dali', /大理.*(咖啡|开店)|(咖啡|开店).*大理/],
+    ['art', /美术|美院/],
+    ['stay', /没有.{0,4}分手|没.{0,2}分手|不分手/],
+    ['beijing', /北京/],
+  ];
+  for (const [id, pattern] of matches) {
+    const found = DEMO_CASES.find(c => c.id === id);
+    if (found && pattern.test(input)) return found;
+  }
+  return { id: 'generic', label: '通用演示', input: '', title: '一条虚构的示范路径',
+    scenes: [
+      { caption: '这个示范故事不代表你输入的那个选择。故事里的主人公走出了熟悉的门，开始学习如何在一个新的地方安排生活。', image_prompt: '黑白线描：一个人提着袋子站在门前' },
+      { caption: '新鲜感过去之后，主人公发现生活没有自动变简单。每天仍有小事要处理，也偶尔得到意料之外的帮助。', image_prompt: '黑白线描：同一个人在桌边整理物品' },
+      { caption: '一个普通下午，主人公翻开旧笔记，看见当时写下的期待。这是一份预写演示，真实生成才能描写属于你的另一条路。', image_prompt: '黑白线描：同一个人在窗边翻笔记' },
+    ], ending: '演示仅用于查看流程，不是个性化结果。' };
 }

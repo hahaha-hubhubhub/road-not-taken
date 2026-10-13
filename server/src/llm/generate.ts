@@ -7,8 +7,9 @@ import {
   normalizeStory,
   type Story,
 } from './schema.js';
-import { SYSTEM_PROMPT, buildRetryPrompt, buildUserPrompt } from './prompt.js';
+import { SYSTEM_PROMPT, buildRetryPrompt, buildUserPrompt, createNarrativeDirection } from './prompt.js';
 import { CARE_RESPONSE, checkInput, checkStoryText } from './safety.js';
+import { checkStoryQuality } from './quality.js';
 import { pickDemoCase } from './demoCases.js';
 
 export type GenerateKind = 'story' | 'care' | 'demo';
@@ -107,6 +108,7 @@ export async function generateStory(input: string, apiKey?: string, model?: stri
   }
 
   const problems: string[] = [];
+  const direction = createNarrativeDirection();
   /** 思考过程也占额度，偶发会超过上限；被截断时自动加额重试 */
   let currentMaxTokens = config.stepfun.maxTokens;
 
@@ -116,11 +118,11 @@ export async function generateStory(input: string, apiKey?: string, model?: stri
         attempt === 1
           ? [
               { role: 'system' as const, content: SYSTEM_PROMPT },
-              { role: 'user' as const, content: buildUserPrompt(input) },
+              { role: 'user' as const, content: buildUserPrompt(input, direction) },
             ]
           : [
               { role: 'system' as const, content: SYSTEM_PROMPT },
-              { role: 'user' as const, content: buildRetryPrompt(input, problems) },
+              { role: 'user' as const, content: buildRetryPrompt(input, problems, direction) },
             ];
 
       // reasoning_effort 是 StepFun 的扩展参数（OpenAI SDK 类型未覆盖），需断言
@@ -168,7 +170,9 @@ export async function generateStory(input: string, apiKey?: string, model?: stri
       }
 
       const story = normalizeStory(validated.data);
-      const allText = [story.title, ...story.scenes.map((s) => s.caption), story.ending].join(' ');
+      const qualityErrors = checkStoryQuality(input, story);
+      if (qualityErrors.length) { problems.splice(0, problems.length, ...qualityErrors); continue; }
+      const allText = [story.title, ...story.scenes.map((s) => `${s.caption} ${s.detail ?? ''}`), story.ending, story.letter ?? ''].join(' ');
       if (!checkStoryText(allText)) {
         problems.length = 0;
         problems.push('内容触碰安全边界');

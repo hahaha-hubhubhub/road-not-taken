@@ -19,7 +19,8 @@
     "capsule-check": "tsx scripts/capsuleCheck.ts",
     "try-llm": "tsx scripts/tryLlm.ts",
     "make-preset-images": "tsx scripts/makePresetImages.ts",
-    "sample-receipt": "tsx scripts/makeSampleReceipt.ts"
+    "sample-receipt": "tsx scripts/makeSampleReceipt.ts",
+    "test:story-quality": "npm run build && node --test tests/story-quality.test.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

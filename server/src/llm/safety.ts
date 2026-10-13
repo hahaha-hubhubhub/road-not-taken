@@ -33,8 +33,8 @@ export function checkInput(text: string): SafetyVerdict {
   if (t.length < 10) {
     return { safe: false, reason: 'too_short', advice: '请多写一点，至少 10 个字' };
   }
-  if (t.length > 100) {
-    return { safe: false, reason: 'too_short', advice: '请精简到 100 字以内' };
+  if (t.length > 1000) {
+    return { safe: false, reason: 'too_short', advice: '请精简到 1000 字以内' };
   }
   if (FORBIDDEN_PATTERNS.some((re) => re.test(t))) {
     return { safe: false, reason: 'forbidden' };

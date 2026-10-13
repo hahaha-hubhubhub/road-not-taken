@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import QRCode from 'qrcode';
 import { CANONICAL_DISCLAIMER, SHARE_BASE, config } from '../config.js';
 import { gateway } from '../device/gateway.js';
+import { generateStory, InputRejectedError } from '../llm/generate.js';
 import { DEMO_CASES } from '../llm/demoCases.js';
 import { imagePath } from '../llm/image.js';
 import { sessionStore } from './store.js';
@@ -55,6 +56,24 @@ apiRouter.get('/demo/cases', (_req: Request, res: Response) => {
 /** 设备在线状态（前端据此决定：等硬件 / 演示模拟） */
 apiRouter.get('/device/status', (_req: Request, res: Response) => {
   res.json({ connected: gateway.hasDevice(), devices: gateway.deviceStatus() });
+});
+
+/** 手机药丸纯文本预览：不创建硬件任务、不保存用户输入。 */
+apiRouter.post('/stories/preview', async (req: Request, res: Response) => {
+  if (typeof req.body?.text !== 'string' || req.body.text.length > 1000) {
+    res.status(400).json({ error: '请输入不超过 1000 字的选择' });
+    return;
+  }
+  try {
+    const result = await generateStory(req.body.text, req.header('x-stepfun-api-key'), req.header('x-stepfun-model'), req.header('x-stepfun-base-url'));
+    // 不暴露提供商原始错误（可能包含请求信息），降级状态明确显示。
+    res.json({ kind: result.kind, degraded: result.degraded, story: result.story,
+      durationMs: result.durationMs, attempts: result.attempts });
+  } catch (err) {
+    res.status(err instanceof InputRejectedError ? 400 : 503).json({
+      error: err instanceof InputRejectedError ? err.message : '生成未完成，请检查模型设置或稍后重试。未配置密钥时请到首页设置。',
+    });
+  }
 });
 
 /** 创建 session */
