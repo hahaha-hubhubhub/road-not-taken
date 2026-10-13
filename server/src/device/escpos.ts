@@ -384,7 +384,9 @@ export function buildReceiptBuffer(opts: ReceiptOptions): Buffer {
       push(textToEscPos(line));
     }
     push(feedLines(1));
-    const bmp = presetImageBitmap(i + 1, imageSize);
+    // 生成图优先，缺的幕回落预置插画。生图异步（三张并行约 30s），
+    // 文本完成时通常还没有图，所以小票先以文字版下发，图就绪后更新任务。
+    const bmp = opts.bitmaps?.[i] ?? presetImageBitmap(i + 1, imageSize);
     if (bmp) {
       push(ESC.align(1));
       push(bitmapToRasterCmd(framedImage(bmp)));

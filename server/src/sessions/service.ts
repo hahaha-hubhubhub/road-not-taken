@@ -198,6 +198,10 @@ async function kickOffImages(sessionId: string, story: Story, imageModel?: strin
       `[image] ${sessionId}：${result.images.length}/3 成功` +
         (result.missing.length ? `，缺第 ${result.missing.join('/')} 幕（回落预置图）` : ''),
     );
+    // 图就绪 → 用带图的版本替换已下发的任务，打印时出来的就是生成图。
+    // 任务已被消费（正在打印/已完成）时 updateTaskImages 会自己忽略。
+    const updated = sessionStore.get(sessionId);
+    if (updated) gateway.updateTaskImages(updated);
   } catch (err) {
     console.warn(`[image] ${sessionId} 生图异常：`, err instanceof Error ? err.message : err);
     sessionStore.patch(sessionId, { imageStatus: 'failed' });

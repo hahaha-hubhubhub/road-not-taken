@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
+import { pngToBitmap, type Bitmap } from '../device/escpos.js';
 
 export interface SceneImage {
   index: number;          // 1..3
@@ -180,4 +181,25 @@ export async function generateSceneImages(
 export function imagePath(sessionId: string, index: number): string | null {
   const file = path.join(imageDir(), `${sessionId}-${index}.png`);
   return fs.existsSync(file) ? file : null;
+}
+
+/**
+ * 把已生成的插画读成 1-bit 位图，供小票排版用（AI-03 上图）。
+ *
+ * 只读 imageReadyActs 里标记成功的幕，其余返回 null，由 escpos 回落预置插画。
+ * 生图是 PNG（1024×1024 彩色/线描），这里缩放到打印宽度并做 1-bit 转换，
+ * 与预置插画走同一条 pngToBitmap 管线，保证纸上效果一致。
+ */
+export function generatedImageBitmaps(sessionId: string, readyActs: number[]): (Bitmap | null)[] {
+  return [1, 2, 3].map((n) => {
+    if (!readyActs.includes(n)) return null;
+    const file = imagePath(sessionId, n);
+    if (!file) return null;
+    try {
+      return pngToBitmap(fs.readFileSync(file), config.print.imageSizePx);
+    } catch (err) {
+      console.warn(`[image] 第 ${n} 幕转位图失败：`, err instanceof Error ? err.message : err);
+      return null;
+    }
+  });
 }

@@ -92,20 +92,27 @@ ws.on('message', async (raw) => {
 
     case 'task': {
       const bytes = Buffer.from(msg.receiptBase64 as string, 'base64');
-      if (pending) {
-        // 单槽设备：上一个任务还没出票就被新任务顶掉。真机上这对应纸带遗留在
-        // 卷轴里，必须人工清理，所以这里明确告警而不是静默覆盖。
-        console.warn(`[print] ⚠️ 上一个任务 ${pending.sessionId} 尚未出票，被 ${msg.sessionId} 顶掉`);
+      const incoming = msg.sessionId as string;
+      if (pending && pending.sessionId === incoming) {
+        // 同一 session 的任务更新：生图就绪后用带图版本替换，属正常流程，静默换内容。
+        // 只有拿到打印授权后才真正写入打印机，所以替换永远是安全的。
+        pending = { sessionId: incoming, bytes };
+        console.log(`[print] 任务 ${incoming} 内容已更新（${bytes.length} 字节，含生成图）`);
+        break;
       }
-      pending = { sessionId: msg.sessionId as string, bytes };
-      console.log(`\n[print] ===== 收到小票 ${msg.sessionId}（${bytes.length} 字节）=====`);
+      if (pending) {
+        // 不同 session 顶掉未出票的任务：真机上对应纸带遗留在卷轴里，必须人工清理。
+        console.warn(`[print] ⚠️ 上一个任务 ${pending.sessionId} 尚未出票，被 ${incoming} 顶掉`);
+      }
+      pending = { sessionId: incoming, bytes };
+      console.log(`\n[print] ===== 收到小票 ${incoming}（${bytes.length} 字节）=====`);
       console.log(`[print] 标题：${msg.title}`);
       for (const s of (msg.scenes ?? []) as { index: number; act: string; caption: string }[]) {
         console.log(`[print]   第${s.index}幕·${s.act}：${s.caption}`);
       }
       console.log(`[print] 结尾：${msg.ending}`);
       console.log('[print] 已就绪，等待手机完成翻转动作与打印授权…');
-      send({ type: 'state', deviceId: args.deviceId, state: 'await_action', sessionId: msg.sessionId });
+      send({ type: 'state', deviceId: args.deviceId, state: 'await_action', sessionId: incoming });
       break;
     }
 

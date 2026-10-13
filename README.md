@@ -47,11 +47,26 @@ npm run mock-device         # 可选：模拟设备；默认不保存用户内�
 npm run smoke               # 两条软件路径端到端（测试 Key / MOCK_LLM）
 npm run capsule-check       # 需要 MOCK_LLM=1 服务端；封装门控/危机/卡纸回归
 npm run browser-check       # 真实浏览器端到端（CDP，会等生成完成）
-npm run try-llm -- "如果我当时……" medium 8000   # 调试 prompt 与耗时
+npm run try-llm -- "如果我当时……" low 4000   # 调试 prompt 与耗时（默认配置，实测最快且完整）
 ```
 
-手机连同一 Wi-Fi 后访问日志里的局域网地址即可体验；没有实体设备时页面会提供
-「我完成了翻转（演示）」按钮，与真机走同一套状态机和打印门控。
+手机连接有两种方式，**翻转手势只能用第一种**：
+
+1. **USB + `adb reverse`（推荐，翻转手势必须用这种）**
+
+   ```bash
+   adb reverse tcp:8787 tcp:8787
+   ```
+
+   手机浏览器打开 `http://localhost:8787`。
+
+2. **同一 Wi-Fi 访问日志里的局域网地址**（如 `http://10.x.x.x:8787`）
+
+   页面能打开、能输入、能看结果，但**翻转手势会失效**。浏览器只在安全上下文
+   （`https://` 或 `http://localhost`）下允许读取 `deviceorientation`，局域网 IP
+   不在其中，且失败是静默的——看起来像功能坏了。这种方式只适合验证按钮路径。
+
+没有实体设备时页面会提供「我完成了翻转（演示）」按钮，与真机走同一套状态机和打印门控。
 
 ## 当前状态
 
