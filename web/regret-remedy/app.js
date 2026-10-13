@@ -11,7 +11,7 @@ function acceptResult(result){
     $('care-copy').textContent=source.scenes.map(s=>s.caption).join('\n\n');
     status('关怀回应 · 未生成平行人生');show('care-screen');return;
   }
-  story={titles:['那条路，真的开始了。','日子接着往下走。',source.title],scenes:source.scenes.map(s=>s.detail||s.caption),letter:source.letter||'这次是预写演示故事，没有生成属于你的来信。\n\n请配置真实模型后，再打开你的那个如果。'};
+  story={titles:source.scenes.map((s,i)=>s.heading||['那条路，真的开始了。','日子接着往下走。',source.title][i]),scenes:source.scenes.map(s=>s.detail||s.caption),letter:source.letter||'这次是预写演示故事，没有生成属于你的来信。\n\n请配置真实模型后，再打开你的那个如果。'};
   status(result.kind==='story'?'模型生成 · 虚构的可能性':'预写案例演示 · 与你的输入不一定相关');
   act=0;renderAct();
 }

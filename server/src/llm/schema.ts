@@ -15,7 +15,7 @@ export const STORY_JSON_SCHEMA = {
   required: ['title', 'scenes', 'ending', 'disclaimer', 'anchors', 'letter'],
   properties: {
     anchors: { type: 'array', items: { type: 'string' }, description: '1-6 个逐字来自用户输入的具体锚点，正文须兑现' },
-    letter: { type: 'string', description: '180-320 字的平行时间线自我来信，2-4 段，回扣三幕的两个具体细节' },
+    letter: { type: 'string', description: '120-220 字的平行时间线自我来信，口语短句、2-4 短段，回扣三幕的两个具体细节' },
     title: {
       type: 'string',
       description: '8-16 字的标题，贴合本次具体选择',
@@ -26,12 +26,13 @@ export const STORY_JSON_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['caption', 'image_prompt', 'detail'],
+        required: ['caption', 'image_prompt', 'detail', 'heading'],
         properties: {
-          detail: { type: 'string', description: '手机端详细正文，90-160 字，最多 220 字，具体行动、对话和因果细节' },
+          heading: { type: 'string', description: '2-28 字，从本幕具体对白或动作取一句，不讲大道理' },
+          detail: { type: 'string', description: '手机端正文，70-140 字，最多 220 字，口语短对白与动作，有上下文与因果细节' },
           caption: {
             type: 'string',
-            description: '该幕打印摘要，40-80 字，保留选择与因果关系',
+            description: '该幕打印文案，8-60 字，关键动作和一句短对白，能看出发生了什么',
           },
           image_prompt: {
             type: 'string',
@@ -43,7 +44,7 @@ export const STORY_JSON_SCHEMA = {
     },
     ending: {
       type: 'string',
-      description: '结尾短句，40 字以内，让人松一口气或笑一下',
+      description: '最后一句具体对白或动作，30 字以内，不套人生格言',
     },
     disclaimer: {
       type: 'string',
@@ -55,6 +56,7 @@ export const STORY_JSON_SCHEMA = {
 export const RESPONSE_FORMAT_NAME = 'road_not_taken_story';
 
 export const SceneSchema = z.object({
+  heading: z.string().trim().min(2).max(28).optional(),
   detail: z.string().trim().min(70, 'detail 太短').max(220, 'detail 太长').optional(),
   caption: z.string().min(8, 'caption 太短').max(140, 'caption 太长'),
   image_prompt: z.string().min(4, 'image_prompt 太短').max(240, 'image_prompt 太长'),
@@ -80,6 +82,7 @@ export function normalizeStory(raw: Story): Story {
     title: raw.title.trim(),
     scenes: raw.scenes.map((s) => ({
       caption: s.caption.trim(),
+      ...(s.heading ? { heading: s.heading.trim() } : {}),
       ...(s.detail ? { detail: s.detail.trim() } : {}),
       image_prompt: s.image_prompt.trim(),
     })),

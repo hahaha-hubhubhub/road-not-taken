@@ -172,7 +172,7 @@ export async function generateStory(input: string, apiKey?: string, model?: stri
       const story = normalizeStory(validated.data);
       const qualityErrors = checkStoryQuality(input, story);
       if (qualityErrors.length) { problems.splice(0, problems.length, ...qualityErrors); continue; }
-      const allText = [story.title, ...story.scenes.map((s) => `${s.caption} ${s.detail ?? ''}`), story.ending, story.letter ?? ''].join(' ');
+      const allText = [story.title, ...story.scenes.map((s) => `${s.heading ?? ''} ${s.caption} ${s.detail ?? ''}`), story.ending, story.letter ?? ''].join(' ');
       if (!checkStoryText(allText)) {
         problems.length = 0;
         problems.push('内容触碰安全边界');

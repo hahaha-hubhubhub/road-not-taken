@@ -15,12 +15,13 @@ const captions=[
 '半年后，设计展前的一次修改让你忙了一整晚。你舍不得删去最喜欢的那页，却发现读者看不懂；回家吃饭的车票也因布展换了日期。你给家里打电话，一边解释展览，一边把那页折好的小书摊开，试着重画它的开头。',
 '第三年，你在上海一间小工作室里重新翻到那本纸做的小书。新作品更清楚，却还留着当年偏爱的那一点颜色。家里的人来参观时没问卖了多少，只认出了那张发过照片的草稿。你给他们搬来凳子，终于能慢慢讲完这件事。',
 ];
-const valid={title:'另一条路上的小书',anchors:['上海','设计'],scenes:captions.map(detail=>({detail,caption:detail.slice(0,65),image_prompt:'黑白线描：同一位穿深色外套的成年人在桌前折纸，桌面草稿与铅笔'})),ending:'那一点颜色，还在。',letter:'我在另一条时间线里，去了上海学设计。你发给家里的那张照片，在这里是一张手上带着铅笔灰的草稿。我也曾舍不得把最喜欢的那页删掉，后来给来看展的家人搬凳子时，才明白原来作品也可以成为解释自己的方式。\n\n这条路不是一张没有改过的稿纸，家里的牵挂也没有因此消失。我不知道你的那份遗憾今天有多重，只想把那本小书折起来寄给你。你可以暂时没有答案，我们都还在过自己的日子。',disclaimer:'虚构'};
+const valid={title:'另一条路上的小书',anchors:['上海','设计'],scenes:captions.map((detail,i)=>({heading:['这页，我想留着。','不删？那就再改。','你慢慢讲，我们听。'][i],detail,caption:detail.slice(0,65),image_prompt:'黑白线描：同一位穿深色外套的成年人在桌前折纸，桌面草稿与铅笔'})),ending:'那一点颜色，还在。',letter:'我在另一条时间线里，去了上海学设计。你发给家里的那张照片，在这里是一张手上带着铅笔灰的草稿。我也曾舍不得把最喜欢的那页删掉，后来给来看展的家人搬凳子时，才明白原来作品也可以成为解释自己的方式。\n\n这条路不是一张没有改过的稿纸，家里的牵挂也没有因此消失。我不知道你的那份遗憾今天有多重，只想把那本小书折起来寄给你。你可以暂时没有答案，我们都还在过自己的日子。',disclaimer:'虚构'};
 
 test('rich schema stays compatible with legacy stories; normalizes new fields',()=>{
  assert.equal(StorySchema.safeParse(valid).success,true);
- const {letter,anchors,...old}=valid; old.scenes=old.scenes.map(({detail,...scene})=>scene); assert.equal(StorySchema.safeParse(old).success,true);
+ const {letter,anchors,...old}=valid; old.scenes=old.scenes.map(({detail,heading,...scene})=>scene); assert.equal(StorySchema.safeParse(old).success,true);
  assert.equal(normalizeStory(valid).letter,valid.letter);
+ assert.equal(normalizeStory(valid).scenes[0].heading,valid.scenes[0].heading);
  assert.deepEqual(checkStoryQuality(input,valid),[]);
 });
 test('rejects invented anchors, anchors only in title, missing letter and repeated acts',()=>{

@@ -6,13 +6,14 @@ export function checkStoryQuality(input: string, story: Story): string[] {
   const anchors = story.anchors ?? [];
   const text = [...story.scenes.map(s => `${s.caption} ${s.detail ?? ''}`), story.letter ?? ''].join('\n');
   if (!story.letter) errors.push('缺少平行时间线来信');
-  else if (story.letter.length < 150) errors.push('来信过短，请回扣具体情节并承认用户在意的东西');
+  else if (story.letter.length < 100) errors.push('来信过短，请回扣具体情节并承认用户在意的东西');
   if (!anchors.length) errors.push('缺少来自输入的具体锚点');
   for (const anchor of anchors) {
     if (!input.includes(anchor)) errors.push('锚点必须逐字来自用户原文');
     if (!text.includes(anchor)) errors.push('锚点未在实际正文或信中兑现');
     if (/^(如果|当时|自己|那个|现在|后来|人生)$/.test(anchor)) errors.push('锚点过于空泛，请选具体行动、愿望或事物');
   }
+  if (story.scenes.some(s => !s.heading)) errors.push('缺少取自具体对白或动作的幕标题');
   if (story.scenes.some(s => !s.detail || s.detail.length < 70)) errors.push('三幕过短，请补充具体行动和因果细节');
   const normalized = story.scenes.map(s => (s.detail ?? s.caption).replace(/[\s，。！？、]/g, ''));
   if (new Set(normalized).size !== 3) errors.push('不同幕正文重复');
