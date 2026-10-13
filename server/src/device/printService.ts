@@ -92,6 +92,11 @@ ws.on('message', async (raw) => {
 
     case 'task': {
       const bytes = Buffer.from(msg.receiptBase64 as string, 'base64');
+      if (pending) {
+        // 单槽设备：上一个任务还没出票就被新任务顶掉。真机上这对应纸带遗留在
+        // 卷轴里，必须人工清理，所以这里明确告警而不是静默覆盖。
+        console.warn(`[print] ⚠️ 上一个任务 ${pending.sessionId} 尚未出票，被 ${msg.sessionId} 顶掉`);
+      }
       pending = { sessionId: msg.sessionId as string, bytes };
       console.log(`\n[print] ===== 收到小票 ${msg.sessionId}（${bytes.length} 字节）=====`);
       console.log(`[print] 标题：${msg.title}`);
@@ -134,13 +139,18 @@ ws.on('message', async (raw) => {
         send({ type: 'error', deviceId: args.deviceId, code: 'printer', message, sessionId });
       } finally {
         printing = false;
+        // 关键：出票后必须回到 idle，否则服务端的 dispatchTask 永远不再选这台设备
+        // （它按 state==='idle' 找空闲设备，避免一个设备被多个 session 抢占）。
+        send({ type: 'state', deviceId: args.deviceId, state: 'idle' });
       }
       break;
     }
 
     case 'cancel':
       console.log(`[print] 任务被取消：${msg.sessionId} ${msg.reason ?? ''}`);
-      pending = null;
+      if (pending && pending.sessionId === msg.sessionId) pending = null;
+      // 取消后同样要回到 idle，把设备还给调度器
+      send({ type: 'state', deviceId: args.deviceId, state: 'idle' });
       break;
 
     case 'pong':

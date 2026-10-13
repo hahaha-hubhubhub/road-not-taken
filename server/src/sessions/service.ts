@@ -231,10 +231,11 @@ export function completeAction(sessionId: string, via: 'device' | 'demo'): boole
     action: s.action ? { ...s.action, done: s.action.moves.length } : undefined,
   });
 
-  // 有打印服务在线就授权它出票；纯粹无设备演示才用定时器兜底。
-  // 不能按 via 判断：B 路由手机完成翻转（走 demo 入口），此时打印服务仍在线，
-  // 必须收到 print_authorized 才会真正写打印机。
-  if (gateway.hasDevice()) {
+  // 只有本 session 真的分配到了设备，才授权那台设备出票。
+  // 不能按"当前是否有设备在线"判断：设备可能正忙着另一个 session，此时授权它
+  // 打印本 session，设备就会用手里别人的字节流却上报本 session 的 print_done——
+  // 出的是错的票。没有设备接单的演示一律走定时器模拟。
+  if (via === 'device' && s.deviceId && gateway.isDeviceOnline(s.deviceId, s.deviceConnectionKey)) {
     gateway.authorizePrint(sessionId);
   } else {
     setTimeout(() => {
@@ -275,6 +276,22 @@ export function finishCapsule(sessionId: string): void {
 /* ------------------------------------------------------------------ */
 
 export function wireBus(): void {
+  /**
+   * 把积压的 session 补发给空闲设备。
+   *
+   * 两个触发点：设备上线、设备出票完成。现场两种顺序都会出现——
+   * 手机先出结果而打印服务后启动，或者连续两人体验时第二人在第一人
+   * 出票前就生成完了。错过下发就意味着之后无论怎么翻转都不会出票。
+   */
+  function dispatchBacklog(): void {
+    for (const s of sessionStore.listAwaitingUnassigned()) {
+      if (gateway.dispatchTask(s)) {
+        gateway.requestAction(s);
+        console.log(`[service] 补发积压任务：${s.id}`);
+      }
+    }
+  }
+
   bus.on('session:ready', (session) => {
     const sent = gateway.dispatchTask(session);
     if (sent) {
@@ -294,13 +311,7 @@ export function wireBus(): void {
    * 所以设备一上线就把仍处于 await_action 且未分配设备的 session 补发出去。
    */
   bus.on('device:connected', () => {
-    const pending = sessionStore.listAwaitingUnassigned();
-    for (const s of pending) {
-      if (gateway.dispatchTask(s)) {
-        gateway.requestAction(s);
-        console.log(`[service] 设备上线，补发积压任务：${s.id}`);
-      }
-    }
+    dispatchBacklog();
   });
 
   bus.on('device:action_complete', (sessionId) => {
@@ -309,10 +320,14 @@ export function wireBus(): void {
 
   bus.on('device:print_done', (sessionId) => {
     finishPrint(sessionId);
+    // 设备空闲了：把之前因为设备忙而没接到单的 session 补发出去。
+    // 现场连续两人体验时，第二人在第一人出票前就生成完了，会错过下发。
+    dispatchBacklog();
   });
 
   bus.on('device:capsule_dispensed', (sessionId) => {
     finishCapsule(sessionId);
+    dispatchBacklog();
   });
 
   bus.on('device:error', ({ sessionId, code, message }) => {
