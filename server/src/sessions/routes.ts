@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { CANONICAL_DISCLAIMER, SHARE_BASE, config } from '../config.js';
 import { gateway } from '../device/gateway.js';
 import { DEMO_CASES } from '../llm/demoCases.js';
+import { parallelRouter } from '../llm/parallel.js';
 import { sessionStore } from './store.js';
 import {
   completeAction,
@@ -19,6 +20,8 @@ apiRouter.use((_req: Request, res: Response, next) => {
   res.setHeader('Cache-Control', 'no-store');
   next();
 });
+
+apiRouter.use('/parallel', parallelRouter);
 
 apiRouter.get('/health', (_req: Request, res: Response) => {
   res.json({

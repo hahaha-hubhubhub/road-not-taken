@@ -25,10 +25,22 @@
 
 - [胶囊版 PRD v0.2（评审草案）](docs/CAPSULE_PRD.md)
 - [产品拷打与验证计划](docs/PRODUCT_REVIEW.md)
-- [差异化策略：双面胶囊（下一迭代，未实现）](docs/DIFFERENTIATION.md)
+- [差异化策略：双面胶囊（含历史候选玩法）](docs/DIFFERENTIATION.md)
+- [预赛界面美术需求（历史深色提案）](docs/PRELIMINARY_UI_ART_BRIEF.md)
 - [原产品需求 v0.1（历史小票方案）](docs/PRD.md)
 - [软件架构与接口契约](docs/ARCHITECTURE.md)
 - [进度记录与实测数据](docs/PROGRESS.md)
+
+## 预赛亮色交互 Demo
+
+启动下方本地服务后打开 **[http://localhost:8787/demo.html](http://localhost:8787/demo.html)**。
+这是独立的类 iOS 明亮交互入口，旧版打印/设备体验仍在 `/`，互不覆盖。
+
+- 无 Key / 断网：点击预置案例，体验双路对照 → 一条固定异议 → 电子纸芯，页面全程标记“预置”；自定义文本不会假装调用 AI。
+- 配置真实 StepFun Key（右上角设置或服务端 `.env`）且服务端未启用 `MOCK_LLM`：自定义输入调用 `/api/parallel/create`，提出异议调用 `/api/parallel/revise`。**现实线索默认不收集**：不填时 AI 只生成未走之路，现实卡片固定显示“未知”；自愿填写一句现状后才进行双路情境推演，不能当成真实用户画像。关注角度可不选或自定义。页面标出虚构前提、来源和实际耗时。
+- 最后一步“打印 / 保存电子纸芯”使用浏览器打印对话框，不代表自动卷纸、装胶囊或真实出仓。不要用个人敏感经历做公开演示，Key 仅在可信本地服务使用；Demo 输出不在服务端持久化。新双路接口仅接受同源网页请求；模型供应商是否保存请求内容取决于其服务条款，当前 Demo 不是可公开部署的隐私方案。
+
+[亮色 Demo 美术与交互说明](docs/DEMO_UI_ART_BRIEF.md)。真实模型的输出质量与端到端延迟仍需在现场用有效 Key 验证。
 
 ## 快速开始（本地）
 

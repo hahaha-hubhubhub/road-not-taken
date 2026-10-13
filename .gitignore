@@ -11,3 +11,6 @@ __pycache__/
 .venv/
 
 out/
+
+# 第三方设计参考图，仅在本地保留；产品使用原创 SVG/CSS
+ui-reference/
