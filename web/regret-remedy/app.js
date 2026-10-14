@@ -1,40 +1,47 @@
 const $=id=>document.getElementById(id);
-const screens=['home','pill-screen','input-screen','swallowing','waiting-screen','output-screen','failure-screen','story-screen','envelope-screen','letter-screen','receipt-screen','care-screen'];
+const screens=['home','pill-screen','input-screen','swallowing','waiting-screen','output-screen','failure-screen','story-screen','envelope-screen','letter-screen','receipt-gesture-screen','receipt-screen','care-screen'];
 let act=0, input='', story=null, busy=false, transitionTimer=null;
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let controller=null, generation=0, pendingDemo=null;
 const shake=RegretShake.create();
 let motionGranted=false, motionListening=false, sensorTimer=null, sensorSeen=false;
+function motionTarget(){return !$('home').hidden?'home':!$('pill-screen').hidden?'pill':null;}
+function motionHint(target,text){$(target==='home'?'bottle-hint':'pill-hint').textContent=text;}
 function stopMotion(){window.removeEventListener('devicemotion',onMotion);motionListening=false;clearTimeout(sensorTimer);shake.reset();}
 function onMotion(event){
-  if(document.hidden||$('home').hidden||busy){shake.reset();return;}
+  const target=motionTarget();if(document.hidden||!target||busy){shake.reset();return;}
   const vector=event.accelerationIncludingGravity;
   if(!vector||![vector.x,vector.y,vector.z].every(Number.isFinite))return;
-  if(!sensorSeen){sensorSeen=true;clearTimeout(sensorTimer);$('bottle-hint').textContent='摇一摇，取一颗。也可以轻点药瓶。';}
-  if(shake.sample(vector,performance.now()))dispense();
+  if(!sensorSeen){sensorSeen=true;clearTimeout(sensorTimer);motionHint(target,target==='home'?'摇一摇，取一颗。也可以轻点药瓶。':'摇一摇打开胶囊，也可以点它。');}
+  if(shake.sample(vector,performance.now())){if(target==='home')dispense();else openPill();}
 }
 function startMotion(){
-  if($('home').hidden||document.hidden||motionListening||$('settings')?.open)return;
-  if(!window.isSecureContext||!window.DeviceMotionEvent){$('bottle-hint').textContent='轻点药瓶，取一颗。';return;}
-  if(typeof DeviceMotionEvent.requestPermission==='function'&&!motionGranted){$('enable-shake').hidden=false;$('bottle-hint').textContent='开启摇一摇，或轻点药瓶取药。';return;}
-  $('enable-shake').hidden=true;motionListening=true;sensorSeen=false;
+  const target=motionTarget();if(!target||document.hidden||motionListening||$('settings')?.open)return;
+  const enable=$(target==='home'?'enable-shake':'enable-pill-shake');
+  if(!window.isSecureContext||!window.DeviceMotionEvent){enable.hidden=true;motionHint(target,target==='home'?'轻点药瓶，取一颗。':'感应不可用，点胶囊打开。');return;}
+  if(typeof DeviceMotionEvent.requestPermission==='function'&&!motionGranted){enable.hidden=false;motionHint(target,target==='home'?'开启摇一摇，或轻点药瓶取药。':'开启摇一摇，或点胶囊打开。');return;}
+  enable.hidden=true;motionListening=true;sensorSeen=false;shake.reset();
   window.addEventListener('devicemotion',onMotion,{passive:true});
-  sensorTimer=setTimeout(()=>{if(!sensorSeen)$('bottle-hint').textContent='轻点药瓶也能取药；手机支持感应时可以摇一摇。';},2500);
+  sensorTimer=setTimeout(()=>{if(!sensorSeen)motionHint(target,target==='home'?'感应没有读数，轻点药瓶也能取药。':'感应没有读数，点胶囊也能打开。');},3000);
 }
-$('enable-shake').onclick=async()=>{
+async function enableMotion(){
+  if(!window.isSecureContext||!window.DeviceMotionEvent)return;
   try{motionGranted=await DeviceMotionEvent.requestPermission()==='granted';}catch{motionGranted=false;}
-  if(motionGranted)startMotion();else{$('enable-shake').hidden=true;$('bottle-hint').textContent='未开启感应，轻点药瓶也能取药。';}
-};
-document.addEventListener('visibilitychange',()=>{if(document.hidden){stopMotion();stopFlip();}else startMotion();});
-window.addEventListener('pagehide',stopMotion);
+  if(motionGranted)startMotion();else{const target=motionTarget();if(target){$(target==='home'?'enable-shake':'enable-pill-shake').hidden=true;motionHint(target,target==='home'?'未开启感应，轻点药瓶。':'未开启感应，点胶囊打开。');}}
+}
+$('enable-shake').onclick=enableMotion;
+$('enable-pill-shake').onclick=enableMotion;
+document.addEventListener('visibilitychange',()=>{if(document.hidden){stopMotion();stopFlip();stopReceiptGesture();if(!$('receipt-gesture-screen').hidden)$('receipt-gesture-hint').textContent='感应已暂停，请重新开启，或直接查看手机票据。';}else startMotion();});
+window.addEventListener('pagehide',()=>{stopMotion();stopReceiptGesture();});
 window.addEventListener('pageshow',startMotion);
 const client=RNTClient;
 let sessionId=null,result=null,latest=null,readOnly=false,pollTimer=null,imageTimer=null,elapsedTimer=null,flip=null,flipDone=0,flipSession=null,reportQueue=Promise.resolve(),recognition=null,imageDownloadUrl=null;
 function status(text){$('generation-status').textContent=text;}
 function stopFlip(){flip?.stop();flip=null;flipSession=null;}
-function stopFlow(){clearTimeout(pollTimer);clearTimeout(imageTimer);clearInterval(elapsedTimer);stopFlip();recognition?.abort();recognition=null;controller?.abort();controller=null;}
+function stopFlow(){stopReceiptGesture();clearTimeout(pollTimer);clearTimeout(imageTimer);clearInterval(elapsedTimer);stopFlip();recognition?.abort();recognition=null;controller?.abort();controller=null;}
 function show(id){
-  screens.forEach(s=>$(s).hidden=s!==id);if(id==='home')startMotion();else stopMotion();if(id!=='waiting-screen')stopFlip();
+  if(id==='pill-screen'){$('pill-screen').classList.remove('opening');$('pill').disabled=false;}
+  screens.forEach(s=>$(s).hidden=s!==id);stopMotion();if(id==='home'||id==='pill-screen')startMotion();if(id!=='waiting-screen')stopFlip();if(id!=='receipt-gesture-screen')stopReceiptGesture();
   if(id!=='input-screen'&&recognition){recognition.abort();recognition=null;}
   $('reset').hidden=id==='home';window.scrollTo({top:0,behavior:'instant'});
   const title=$(id).querySelector('h1,h2');if(title){title.tabIndex=-1;title.focus({preventScroll:true});}
@@ -45,13 +52,19 @@ function reset(){
   generation++;stopFlow();cancelOld();input='';story=null;result=null;latest=null;readOnly=false;pendingDemo=null;
   $('care-copy').textContent='';$('letter-body').replaceChildren();$('receipt-body').replaceChildren();$('demo-choice').hidden=true;
   status('准备好写下你的那个如果');clearTimeout(transitionTimer);busy=false;act=0;
-  $('home').classList.remove('dispensing');$('bottle').classList.remove('uncap');$('bottle').disabled=false;
+  $('home').classList.remove('dispensing');$('bottle').classList.remove('uncap');$('bottle').disabled=false;$('pill-screen').classList.remove('opening');$('pill').disabled=false;
   $('regret-form').reset();$('counter').textContent='0 / 1000';$('error').hidden=true;$('saved').hidden=true;
   $('mic').textContent='说出来';$('flip-start').disabled=false;
   if(location.hash)history.replaceState(null,'',location.pathname+location.search);show('home');
 }
-function dispense(){if(busy||$('home').hidden)return;busy=true;stopMotion();$('bottle').disabled=true;$('enable-shake').hidden=true;$('home').classList.add('dispensing');$('bottle').classList.add('uncap');$('bottle-hint').textContent='这一颗，给你的那个如果。';transitionTimer=setTimeout(()=>{show('pill-screen');busy=false;},reduced?10:1250)}
-$('bottle').onclick=dispense;$('pill').onclick=()=>show('input-screen');
+function dispense(){if(busy||$('home').hidden)return;busy=true;stopMotion();if(navigator.vibrate)navigator.vibrate(20);$('bottle').disabled=true;$('enable-shake').hidden=true;$('home').classList.add('dispensing');$('bottle').classList.add('uncap');$('bottle-hint').textContent='这一颗，给你的那个如果。';transitionTimer=setTimeout(()=>{show('pill-screen');busy=false;},reduced?10:1250)}
+function openPill(){
+  if(busy||$('pill-screen').hidden)return;busy=true;stopMotion();$('pill').disabled=true;
+  $('pill-screen').classList.add('opening');$('pill-hint').textContent='胶囊打开了。写下那个「如果」。';
+  if(navigator.vibrate)navigator.vibrate(20);
+  transitionTimer=setTimeout(()=>{show('input-screen');busy=false;},reduced?10:760);
+}
+$('bottle').onclick=dispense;$('pill').onclick=openPill;
 function inputError(message){$('error').textContent=message;$('error').hidden=false;}
 $('regret').oninput=()=>{if(pendingDemo){cancelOld();pendingDemo=null;$('demo-choice').hidden=true;}$('counter').textContent=`${$('regret').value.length} / 1000`;$('error').hidden=true;};
 document.querySelector('[data-back]').onclick=()=>show('pill-screen');
@@ -176,7 +189,42 @@ function renderReceipt(){
   if(result.sessionId){$('qr-image').src=client.asset(`/api/sessions/${result.sessionId}/qr.png`);$('share-link').value=result.shareUrl||`${location.origin}/#/r/${result.sessionId}`;}
   $('receipt-notice').textContent=result.kind==='demo'?'预写演示案例，不是根据输入实时生成。':result.disclaimer+' 分享结果默认保留 24 小时，链接需能访问项目服务。';
 }
-$('view-receipt').onclick=()=>{renderReceipt();show('receipt-screen');};$('receipt-back').onclick=()=>show('letter-screen');
+/* This reveal affects only the phone preview, never session print authorization. */
+let receiptTimer=null,receiptDetector=null,receiptSeen=false;
+function stopReceiptGesture(){window.removeEventListener('deviceorientation',onReceiptOrientation);clearTimeout(receiptTimer);receiptDetector=null;}
+function onReceiptOrientation(event){
+  if(document.hidden||$('receipt-gesture-screen').hidden||!receiptDetector)return;
+  const {beta,gamma}=event;if(![beta,gamma].every(Number.isFinite))return;
+  if(!receiptSeen){receiptSeen=true;clearTimeout(receiptTimer);}
+  const action=receiptDetector.sample(beta,gamma,performance.now());
+  if(action==='down'){$('receipt-gesture-hint').textContent='背面已识别。现在把屏幕翻回来。';if(navigator.vibrate)navigator.vibrate(25);}
+  if(action==='complete'){if(navigator.vibrate)navigator.vibrate([20,40,20]);revealReceipt('sensor');}
+}
+function revealReceipt(via){stopReceiptGesture();if(!result)return;$('receipt-screen').dataset.reveal=via;renderReceipt();show('receipt-screen');}
+$('view-receipt').onclick=()=>{
+  const supported=!!(window.isSecureContext&&window.DeviceOrientationEvent);
+  $('receipt-gesture-hint').textContent=supported?'屏幕朝下停一秒，再翻回来，票据就会展开。':'当前连接无法读取翻面感应，可直接查看手机票据。';
+  $('receipt-sensor').hidden=!supported;
+  $('receipt-sensor').disabled=false;
+  show('receipt-gesture-screen');
+};
+$('receipt-sensor').onclick=async()=>{
+  const ticket=generation;$('receipt-sensor').disabled=true;
+  let allowed=true;
+  if(typeof DeviceOrientationEvent.requestPermission==='function'){
+    try{allowed=await DeviceOrientationEvent.requestPermission()==='granted';}catch{allowed=false;}
+  }
+  if(ticket!==generation||$('receipt-gesture-screen').hidden)return;
+  if(!allowed){$('receipt-gesture-hint').textContent='感应未开启；可直接查看手机票据。';$('receipt-sensor').disabled=false;return;}
+  stopReceiptGesture();receiptDetector=RNTFaceDown.create();receiptSeen=false;
+  window.addEventListener('deviceorientation',onReceiptOrientation,{passive:true});
+  $('receipt-gesture-hint').textContent='感应已开启。屏幕朝下停一秒，再翻回来。';
+  $('receipt-sensor').textContent='重新开始识别';$('receipt-sensor').disabled=false;
+  receiptTimer=setTimeout(()=>{if(!receiptSeen)$('receipt-gesture-hint').textContent='未收到姿态读数；请用 HTTPS 或直接查看手机票据。';},3500);
+};
+$('receipt-direct').onclick=()=>revealReceipt('tap');
+$('receipt-gesture-back').onclick=()=>show('letter-screen');
+$('receipt-back').onclick=()=>show('letter-screen');
 $('save-image').onclick=async()=>{
   const ticket=generation,s=result;$('save-image').disabled=true;
   try{const file=await RNTCapture.save(s);if(ticket!==generation){URL.revokeObjectURL(file.url);return;}
@@ -214,7 +262,7 @@ $('mic').hidden=!Speech;$('mic').onclick=()=>{
 };
 $('regret').addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key==='Enter')$('regret-form').requestSubmit();});
 document.querySelector('.wordmark').onclick=event=>{event.preventDefault();reset();};
-document.addEventListener('rnt:settings-open',()=>{stopMotion();stopFlip();});
+document.addEventListener('rnt:settings-open',()=>{stopMotion();stopFlip();stopReceiptGesture();});
 document.addEventListener('rnt:settings-close',startMotion);
 $('care-again').onclick=reset;$('again').onclick=reset;$('reset').onclick=reset;window.addEventListener('hashchange',route);
 startMotion();void probe();void route();

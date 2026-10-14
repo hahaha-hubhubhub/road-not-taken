@@ -20,3 +20,20 @@
 dialog{border:1px solid var(--line);border-radius:3px;background:var(--bg);color:var(--ink);padding:30px;max-width:480px;width:calc(100% - 36px);max-height:85svh;overflow:auto}dialog::backdrop{background:#25292b55}.settings-head{display:flex;align-items:center;justify-content:space-between;gap:15px}.settings-head h2{font-size:25px}dialog label{display:block;font-size:12px;color:var(--muted);margin:25px 0 8px}dialog input{font:14px var(--font);background:#fafbf9;border:1px solid var(--line);padding:12px;width:100%;border-radius:0}dialog details{margin-top:24px;font-size:12px}dialog .instruction{font-size:11px;line-height:1.8}dialog .action{margin-top:20px}
 @media(max-width:650px){header{padding:18px 24px}.header-actions{gap:12px}.header-actions .quiet{font-size:11px}.connection{max-width:68px}.story-art img{max-height:215px}.receipt-screen{padding:24px}.waiting-screen,.output-screen{padding:25px 30px 45px}.waiting-screen h2,.output-screen h2{font-size:25px}.flip-symbol{margin-top:40px}}
 @media(prefers-reduced-motion:reduce){.output-paper{animation:none}}
+
+/* The second motion chapter is optional: every sensor gesture has a tap path. */
+.pill-screen .instruction{margin:8px auto 0}
+.pill-screen>.quiet{display:block;margin:8px auto;min-height:44px}
+.pill-button{min-width:220px;min-height:160px;touch-action:manipulation}
+.pill-button .capsule i{transition:transform .55s var(--ease),opacity .55s var(--ease)}
+.pill-screen.opening .capsule i:first-child{transform:translateX(-32px) rotate(-20deg)}
+.pill-screen.opening .capsule i:last-child{transform:translateX(32px) rotate(20deg)}
+.receipt-gesture-screen{max-width:520px;margin:auto;text-align:center;padding:40px 30px 60px}
+.receipt-gesture-screen h2{font-size:clamp(25px,5vw,32px)}
+.receipt-gesture-screen .action{text-align:left;margin-top:25px}
+.receipt-gesture-screen .quiet{display:block;margin:12px auto;min-height:48px}
+.receipt-gesture-art{height:150px;position:relative;display:grid;place-items:center;margin:30px auto}
+.receipt-phone{width:90px;height:140px;border:7px solid var(--ink);border-radius:18px;background:var(--blue);transform:rotate(-12deg);box-shadow:8px 13px 20px #25292b25}
+.receipt-slip{position:absolute;width:68px;height:94px;background:repeating-linear-gradient(#fff 0 15px,#d6dbd9 16px,#fff 17px 24px);border:1px solid var(--line);transform:translate(56px,19px) rotate(8deg);box-shadow:5px 8px 12px #25292b20}
+@media(max-width:650px){.receipt-gesture-screen{padding:25px 30px 45px}.receipt-gesture-art{margin:16px auto}.pill-button{margin:10px auto 18px}}
+@media(prefers-reduced-motion:reduce){.pill-screen.opening .capsule i{transition:none}.receipt-phone,.receipt-slip{transform:none}}

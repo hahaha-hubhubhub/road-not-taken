@@ -23,7 +23,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 
 const PROBE = `(() => {
  const visible=id=>{const e=document.getElementById(id);return e&&!e.hidden?'visible':'hidden';};
- return JSON.stringify({views:{home:visible('home'),pill:visible('pill-screen'),input:visible('input-screen'),waiting:visible('waiting-screen'),output:visible('output-screen'),story:visible('story-screen'),envelope:visible('envelope-screen'),letter:visible('letter-screen'),result:visible('receipt-screen')},phase:document.getElementById('output-screen')?.dataset.phase,actLabels:document.querySelectorAll('#receipt-body section').length,hasQr:!!document.getElementById('qr-image')?.src,demoChoice:visible('demo-choice'),errorText:document.getElementById('error')?.textContent,settingsOpen:document.getElementById('settings')?.open,statusText:document.getElementById('connection-status')?.textContent,deliveryNote:document.getElementById('delivery-note')?.textContent,degradedTag:/预写/.test(document.getElementById('generation-status')?.textContent||''),offlineBanner:/连接设置/.test(document.getElementById('connection-status')?.textContent||'')});
+ return JSON.stringify({views:{home:visible('home'),pill:visible('pill-screen'),input:visible('input-screen'),waiting:visible('waiting-screen'),output:visible('output-screen'),story:visible('story-screen'),envelope:visible('envelope-screen'),letter:visible('letter-screen'),reveal:visible('receipt-gesture-screen'),result:visible('receipt-screen')},pillHint:document.getElementById('pill-hint')?.textContent,pillPermission:!document.getElementById('enable-pill-shake')?.hidden,motionListening:typeof motionListening==='undefined'?null:motionListening,busy:typeof busy==='undefined'?null:busy,phase:document.getElementById('output-screen')?.dataset.phase,actLabels:document.querySelectorAll('#receipt-body section').length,hasQr:!!document.getElementById('qr-image')?.src,demoChoice:visible('demo-choice'),errorText:document.getElementById('error')?.textContent,settingsOpen:document.getElementById('settings')?.open,statusText:document.getElementById('connection-status')?.textContent,deliveryNote:document.getElementById('delivery-note')?.textContent,degradedTag:/预写/.test(document.getElementById('generation-status')?.textContent||''),offlineBanner:/连接设置/.test(document.getElementById('connection-status')?.textContent||''),horizontalOverflow:document.documentElement.scrollWidth>window.innerWidth,revealVia:document.getElementById('receipt-screen')?.dataset.reveal});
 })()`;
 
 async function main(): Promise<void> {
@@ -85,6 +85,7 @@ async function main(): Promise<void> {
   };
   const sessionId = attached.sessionId;
   await command('Page.enable', {}, sessionId);
+  await command('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true }, sessionId);
   if (testKey) {
     await command(
       'Page.addScriptToEvaluateOnNewDocument',
@@ -102,6 +103,8 @@ async function main(): Promise<void> {
   let clickedSimulate = false;
   let submitted = false;
   let seenEncapsulating = false;
+  let seenReceiptGesture = false;
+  let overflowSeen = false;
 
   while (Date.now() - started < waitMs) {
     await sleep(1500);
@@ -113,18 +116,43 @@ async function main(): Promise<void> {
     const state = JSON.parse(raw) as Record<string, any>;
     last = raw;
     if (state.phase === 'encapsulating') seenEncapsulating = true;
+    if (state.views.reveal === 'visible') seenReceiptGesture = true;
+    if (state.horizontalOverflow) overflowSeen = true;
 
     const sample = new URL(url).searchParams.get('autostart') || '如果我辞职去大理开咖啡店';
     if (submitted && state.views.input === 'visible' && /待设置模型/.test(state.statusText || '')) break;
     let action = '';
     if (state.views.home === 'visible') action = "document.getElementById('bottle').click()";
-    else if (state.views.pill === 'visible') action = "document.getElementById('pill').click()";
+    else if (state.views.pill === 'visible') action = `
+      (async()=>{
+        if(!window.isSecureContext||!window.DeviceMotionEvent){document.getElementById('pill').click();return;}
+        if(!document.getElementById('enable-pill-shake').hidden){
+          Object.defineProperty(DeviceMotionEvent,'requestPermission',{configurable:true,value:async()=> 'granted'});
+          document.getElementById('enable-pill-shake').click();
+          await new Promise(r=>setTimeout(r,80));
+        }
+        for(const x of [0,22,-22]){
+          const e=new Event('devicemotion');Object.defineProperty(e,'accelerationIncludingGravity',{value:{x,y:0,z:0}});window.dispatchEvent(e);
+          await new Promise(r=>setTimeout(r,120));
+        }
+      })()`;
     else if (state.views.input === 'visible' && state.demoChoice === 'visible' && allowDemo) action = "document.getElementById('demo-choice').click()";
     else if (state.views.input === 'visible' && !submitted) { submitted = true; action = `document.getElementById('regret').value=${JSON.stringify(sample)};document.getElementById('regret-form').requestSubmit()`; }
     else if (state.views.story === 'visible') action = "document.getElementById('next').click()";
     else if (state.views.envelope === 'visible') action = "document.getElementById('open-letter').click()";
     else if (state.views.letter === 'visible') action = "document.getElementById('view-receipt').click()";
-    if (action) await command('Runtime.evaluate', { expression: action }, sessionId);
+    else if (state.views.reveal === 'visible') action = `
+      (async()=>{
+        Object.defineProperty(DeviceOrientationEvent,'requestPermission',{configurable:true,value:async()=> 'granted'});
+        document.getElementById('receipt-sensor').click();
+        await new Promise(r=>setTimeout(r,80));
+        for(const beta of [170,170,170]){
+          window.dispatchEvent(new DeviceOrientationEvent('deviceorientation',{beta,gamma:0}));
+          await new Promise(r=>setTimeout(r,330));
+        }
+        window.dispatchEvent(new DeviceOrientationEvent('deviceorientation',{beta:0,gamma:0}));
+      })()`;
+    if (action) await command('Runtime.evaluate', { expression: action, awaitPromise: true }, sessionId);
     if (state.views.result === 'visible') {
       done = true;
       break;
@@ -142,16 +170,23 @@ async function main(): Promise<void> {
   }
 
   const state = JSON.parse(last || '{}') as Record<string, any>;
+  let directFallback = false;
+  if (done) {
+    await command('Runtime.evaluate', { expression: `document.getElementById('receipt-back').click();document.getElementById('view-receipt').click();document.getElementById('receipt-direct').click()` }, sessionId);
+    const fallback = await command('Runtime.evaluate', { expression: PROBE, returnByValue: true }, sessionId);
+    const direct = JSON.parse(fallback?.result?.value || '{}');
+    directFallback = direct.views?.result === 'visible' && direct.revealVia === 'tap' && direct.actLabels === 3;
+  }
   console.log(`\n=== 结果（${((Date.now() - started) / 1000).toFixed(1)}s，${done ? '已出票' : '超时未完成'}）===`);
   console.log(JSON.stringify(state, null, 2));
 
   const noKeyFlow = state.views.input === 'visible' && /待设置模型/.test(state.statusText || '');
   const ok =
-    state.offlineBanner === false &&
+    state.offlineBanner === false && !overflowSeen && (noKeyFlow || directFallback) &&
     (noKeyFlow ||
       (state.views.result === 'visible' &&
-        state.actLabels === 3 &&
-        (allowDemo ? state.degradedTag === true && seenEncapsulating &&
+        state.actLabels === 3 && seenReceiptGesture && state.revealVia === 'sensor' &&
+        (allowDemo ? /胶囊打开了/.test(state.pillHint||'') && state.degradedTag === true && seenEncapsulating &&
           /模拟体验/.test(state.deliveryNote) : state.degradedTag === false) &&
         state.hasQr === true));
   console.log(
