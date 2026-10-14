@@ -1,7 +1,10 @@
 import express from 'express';
 import fs from 'node:fs';
 import http from 'node:http';
+import https from 'node:https';
 import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { config, WEB_DIR } from './config.js';
 import { gateway } from './device/gateway.js';
 import { sessionStore } from './sessions/store.js';
@@ -53,7 +56,39 @@ if (fs.existsSync(WEB_DIR)) {
   app.use('/', (_req, res) => res.status(503).send('web/ 目录缺失'));
 }
 
-const server = http.createServer(app);
+/**
+ * 手机传感器只在安全上下文可用；手机走局域网 IP 时必须有 HTTPS。
+ * 这里用 openssl 生成一张自签证书（含局域网 IP 的 SAN），只为了把页面变成安全上下文。
+ */
+function selfSigned(): { key: Buffer; cert: Buffer } | null {
+  const dir = config.tlsDir;
+  const keyPath = path.join(dir, 'key.pem');
+  const certPath = path.join(dir, 'cert.pem');
+  try {
+    if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
+      fs.mkdirSync(dir, { recursive: true });
+      const san = ['DNS:localhost', 'IP:127.0.0.1', ...lanAddresses().map((ip) => `IP:${ip}`)].join(',');
+      const base = ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '3650',
+        '-keyout', keyPath, '-out', certPath, '-subj', '/CN=road-not-taken'];
+      try {
+        execFileSync('openssl', [...base, '-addext', `subjectAltName=${san}`], { stdio: 'ignore' });
+      } catch {
+        // 老版本 openssl 不认 -addext，退化成不带 SAN 的证书：手机会多一次警告点继续
+        execFileSync('openssl', base, { stdio: 'ignore' });
+      }
+      console.log(`  · 已生成自签证书：${dir}`);
+    }
+    return { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
+  } catch (err) {
+    console.warn(`  · HTTPS 不可用（${err instanceof Error ? err.message : String(err)}），退回 HTTP。`);
+    return null;
+  }
+}
+
+const tls = config.https ? selfSigned() : null;
+const server = tls ? https.createServer(tls, app) : http.createServer(app);
+const scheme = tls ? 'https' : 'http';
+const wsScheme = tls ? 'wss' : 'ws';
 gateway.attach(server);
 wireBus();
 
@@ -81,11 +116,18 @@ server.listen(config.port, () => {
   console.log('');
   console.log('  没走的路 / Road Not Taken — 服务端已启动');
   console.log(`  · 模型：${model}`);
-  console.log(`  · 本机：http://localhost:${config.port}`);
+  console.log(`  · 本机：${scheme}://localhost:${config.port}`);
   for (const ip of lanAddresses()) {
-    console.log(`  · 局域网（手机扫码/访问用）：http://${ip}:${config.port}`);
+    console.log(`  · 局域网（手机扫码/访问用）：${scheme}://${ip}:${config.port}`);
   }
-  console.log(`  · 设备通道：ws://<地址>:${config.port}/device?deviceId=mock-01`);
+  console.log(`  · 设备通道：${wsScheme}://<地址>:${config.port}/device?deviceId=mock-01`);
+  if (tls) {
+    console.log('  · 手机动作已可用：自签证书会让手机先弹一次「不安全」，点「继续访问」即可。');
+    console.log('    想彻底不警告：把 server/.certs/cert.pem 装到手机上设为信任。');
+  } else if (lanAddresses().length) {
+    console.log('  · 注意：手机走局域网 http 时，浏览器会禁用陀螺仪 / 加速度计 / 麦克风。');
+    console.log('    要用「翻个面 / 摇一摇 / 吹一口气」，请用 HTTPS=1 重启（见 README「手机传感器」）。');
+  }
   console.log('  · 模拟设备：npm run mock-device');
   console.log('');
 });

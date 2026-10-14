@@ -12,5 +12,8 @@ __pycache__/
 
 out/
 
+# 本地自签证书（HTTPS=1 时自动生成），不要提交
+server/.certs/
+
 # 第三方设计参考图，仅在本地保留；产品使用原创 SVG/CSS
 ui-reference/

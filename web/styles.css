@@ -159,6 +159,48 @@ button:active { transform: scale(0.98); }
 .dots span.cur { background: var(--ink); animation: pulse 1s ease infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 
+/* 手机动作：真传感器驱动 */
+.phone-card {
+  margin: 14px 0 12px; padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.04);
+}
+.phone-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.phone-head h3 { margin: 0; font-family: var(--font-serif); font-size: 16px; letter-spacing: 0.04em; }
+.phone-count { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+.phone-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.gchip {
+  text-align: left; display: flex; flex-direction: column; gap: 2px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--paper); border-radius: 12px; padding: 10px 11px; min-height: 58px;
+}
+.gchip b { font-size: 14px; }
+.gchip span { font-size: 11px; color: var(--muted); line-height: 1.35; }
+.gchip[aria-pressed="true"] {
+  background: var(--paper); color: var(--ink); border-color: var(--paper);
+}
+.gchip[aria-pressed="true"] span { color: #6b6156; }
+.gchip:disabled { opacity: 0.45; }
+.phone-armed { margin-top: 10px; }
+.arm-title { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.sensor {
+  font-family: var(--font-mono); font-size: 11px; color: var(--muted);
+  background: rgba(0, 0, 0, 0.28); border-radius: 8px; padding: 7px 9px; min-height: 30px;
+  display: flex; align-items: center;
+}
+.phone-bar { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); margin: 9px 0; overflow: hidden; }
+.phone-bar i { display: block; height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width 0.12s linear; }
+.small-btn { padding: 7px 12px; font-size: 12px; }
+.hit-flash { animation: hit 0.4s ease; }
+@keyframes hit { 0% { background: var(--accent); } 100% { background: rgba(255, 255, 255, 0.04); } }
+.warn.small, .muted.small { font-size: 11.5px; line-height: 1.5; }
+.warn.small { color: #f0c674; }
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-bar i { transition: none; }
+  .hit-flash { animation: none; }
+}
+
 /* 打印中 */
 .printer { width: 120px; margin: 30px auto 6px; }
 .printer .paper {
@@ -240,3 +282,10 @@ footer {
 .capsule-graphic span { color: var(--ink); font-size: 11px; background: var(--paper); padding: 1px 4px; border-radius: 4px; }
 @keyframes capsule-roll { to { transform: rotate(18deg) translateX(18px); } }
 @media (prefers-reduced-motion: reduce) { .capsule-graphic { animation: none; } }
+
+/* 旧硬件流程的模式说明与独立游戏入口 */
+.game-entry{display:flex;flex-direction:column;gap:3px;margin:3px 0 18px;padding:14px 16px;border-radius:14px;background:#2a2730;color:#f7f3ea;text-decoration:none;border:1px solid #5b4b54}
+.game-entry strong{color:#ffc583;font-size:14px}.game-entry span{font-size:12px;color:#d1c4c5}.game-entry:focus-visible{outline:3px solid #ffc583;outline-offset:3px}
+.game-entry.primary{background:linear-gradient(135deg,#463040,#2a2730);border-color:#ffc583;box-shadow:0 8px 20px rgba(0,0,0,.28)}
+.game-entry.primary strong{font-size:15px;letter-spacing:.01em}
+.mode-card .sub{color:var(--paper);margin:9px 0 14px}.mode-card .hint{font-size:13px;color:#c9beb5}

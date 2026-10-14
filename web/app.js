@@ -49,43 +49,43 @@
   const EMBEDDED_CASES = [
     {
       id: 'dali', label: '辞职去大理开咖啡店', input: '如果我辞职去大理开咖啡店',
-      title: '另一条路：大理',
+      title: '海边小店：本店全年无休',
       acts: [
-        { caption: '你在洱海边有了一扇总能照进晨光的窗，朋友们说你终于活成了自己。' },
-        { caption: '旺季时每天站十二小时，淡季用同一袋豆子解释三种风味；房东第三次涨租那天，窗外的云依然很好看。' },
-        { caption: '两年后店里评分最高的商品不是咖啡，是你为补贴房租顺手做的 Excel 经营模板。' },
+        { caption: '洱海边一扇白墙木窗。第一杯手冲端出去，海是蓝的，客人说“这就是生活”，你连拍十七张，够发一整年。' },
+        { caption: '旺季三桌客人同时预约最佳落日位；淡季房东、豆商和平台抽成开了个会，一致通过：旺季延长、淡季涨价、抽成照旧。' },
+        { caption: '店里的我说：这店是我的，也是房东的、平台的、豆商的，排到最后才轮到我。' },
       ],
-      ending: '另一条路也有风景，也要交房租。',
+      ending: '海风不打卡，账单打。',
     },
     {
       id: 'beijing', label: '毕业后留在北京', input: '如果我毕业后留在北京',
-      title: '另一条路：北京',
+      title: '留在北京：窗户朝西，时间朝甲方',
       acts: [
-        { caption: '你在地铁尽头租下一间朝北的屋子，睡前刷到的全是行业峰会和深夜食堂。' },
-        { caption: '通勤两小时，加班到十一点，周末用来补觉；你学会了在三平米的厨房里同时煮面和回工作消息。' },
-        { caption: '第五年你终于搬进了南向的房子，也终于发现，你只是想被看见。' },
+        { caption: '你在三环里租到一间朝北的屋子。睡前刷到的全是行业峰会、“北京凌晨四点”和别人的入职照。' },
+        { caption: '地铁、日程表和外卖提醒轮流当闹钟。你刚挤上早班车，工牌就提醒你下班后还有一场对齐会。' },
+        { caption: '工位上的我说：我住的地方朝北，我的窗户朝西，我的时间朝甲方。' },
       ],
-      ending: '你留下来了，也把自己留在了那里。',
+      ending: '日出看到了，工位也到了。',
     },
     {
       id: 'art', label: '学美术而不是计算机', input: '如果我学的是美术而不是计算机',
-      title: '另一条路：美院',
+      title: '画室很自由，甲方更自由',
       acts: [
-        { caption: '你在画室里待到熄灯，松节油的味道盖过了宿舍的泡面味，老师说你有天赋。' },
-        { caption: '为了买颜料去画室代课，为了交作业通宵；母亲的电话从"稳定一点"变成"你吃饭了吗"。' },
-        { caption: '十年后你给一款 App 画图标，甲方说"再鲜艳一点"，你改了十七版。' },
+        { caption: '画室熄灯前，松节油盖过泡面味。老师站你背后看了三秒，说“你有天赋”——这三个字你存了两年。' },
+        { caption: '颜料刚拆封，截稿日提前四天。甲方说“再鲜艳一点”，你把同一套配色交到第八版；第九版他问你，能不能回到第七版。' },
+        { caption: '画室里的我说：别问我后不后悔，我正忙着给第八版盖一层更鲜艳的灰。' },
       ],
-      ending: '热爱没有贬值，账单也没有。',
+      ending: '画室很自由，甲方更自由。',
     },
     {
       id: 'stay', label: '当时没有和他分手', input: '如果我当时没有和他分手',
-      title: '另一条路：留下',
+      title: '没分手：先装茶几',
       acts: [
-        { caption: '你们养了一只猫，周末去宜家买了一块谁都说好看的茶几。' },
-        { caption: '争吵从谁洗碗开始，到"你从来不改"结束；和解的方式是点两份外卖，然后一起看完一档无聊综艺。' },
-        { caption: '第三年你们婚礼请了十二桌，你致辞时说"谢谢你忍我"，全场都笑了。' },
+        { caption: '你们养了只猫，周末去宜家买了张谁看都说“挺温馨”的茶几，朋友圈里你们是模范情侣。' },
+        { caption: '茶几说明书少画了一颗螺丝，猫负责把剩下的螺丝藏起来。三年后你们找到那颗螺丝，吵了一架，关于是谁弄丢的。' },
+        { caption: '客厅里的我说：感情没散，茶几差点。我们现在最熟练的技能，是沉默着拼家具。' },
       ],
-      ending: '留下不是胜利，只是另一种日常。',
+      ending: '感情没散，茶几差点。',
     },
   ];
 
@@ -135,6 +135,7 @@
   /* ---------------- 视图切换 ---------------- */
   const VIEWS = ['input', 'generating', 'waiting', 'printing', 'encapsulating', 'result'];
   function showView(name) {
+    if (name !== 'waiting') disarmGesture();
     VIEWS.forEach((v) => $(`view-${v}`).classList.toggle('hidden', v !== name));
     window.scrollTo(0, 0);
   }
@@ -220,6 +221,29 @@
     }
   }
 
+  /* ---------------- 运行模式说明：与齿轮设置分开 ---------------- */
+  let modeReturnFocus = null;
+  function openMode() {
+    modeReturnFocus = document.activeElement;
+    const description = !state.online
+      ? '本地服务没连上。现在只能玩现成案例，不能现场生成新故事。'
+      : state.mockLlm
+        ? '现在是现成案例模式：故事提前写好了，不调用实时模型。'
+        : (state.apiKey || state.hasServerKey)
+          ? `实时 AI 在线，当前模型是 ${state.model || state.serverModel || '默认模型'}。模型要是临时掉链子，页面会明确切回现成案例。`
+          : '服务连上了，但还差一个模型 Key。可以点齿轮去设置，也可以先玩现成案例。';
+    $('mode-description').textContent = description;
+    $('mode-device').textContent = state.deviceConnected
+      ? '实体设备已连接。到底有没有打印和出仓，以传感器回报为准。'
+      : '实体设备没连上。网页里的打印和出仓只是软件模拟，不会凭空掉出一颗胶囊。';
+    $('mode-modal').classList.remove('hidden');
+    $('btn-mode-close').focus();
+  }
+  function closeMode() {
+    $('mode-modal').classList.add('hidden');
+    modeReturnFocus?.focus();
+  }
+
   /* ---------------- 设置弹窗 ---------------- */
   function openSettings() {
     $('input-key').value = state.apiKey;
@@ -266,10 +290,11 @@
 
   /* ---------------- 主流程 ---------------- */
   const GENERATING_TEXTS = [
-    '正在拆掉那条路上的滤镜……',
-    '正在计算旺季的房租……',
-    '正在预约一份冷掉的外卖……',
-    '正在等一趟凌晨的末班车……',
+    '机器正在读你那条路的广告词……',
+    '正在找这条路上没人提前告诉你的那几笔账……',
+    '正在问那边的你，最近过得怎么样……',
+    '别催。那边的你也在加班……',
+    '正在确认：那条路也没给你开后门……',
   ];
   let generatingTimer = null;
 
@@ -375,6 +400,7 @@
 
   function showWaiting(s) {
     $('action-text').textContent = s.action ? s.action.text : '完成翻转动作';
+    resetGestures(s.action ? s.action.total : 0);
     updateActionDots(s);
     const simulate = $('btn-simulate');
     const hint = $('waiting-hint');
@@ -394,7 +420,9 @@
 
   function updateActionDots(s) {
     const total = s.action ? s.action.total : 0;
-    const done = s.action ? s.action.done : 0;
+    // 没接实体设备时，手机动作就是动作来源，本地进度不能被轮询覆盖回 0
+    const local = !state.deviceConnected && ges.total === total ? ges.done : 0;
+    const done = Math.max(s.action ? s.action.done : 0, local);
     const dots = $('action-dots');
     if (dots.childElementCount !== total) {
       dots.innerHTML = '';
@@ -453,7 +481,7 @@
       ${acts}
       <div class="dashed"></div>
       <div class="ending">${escapeHtml(s.ending || '')}</div>
-      <div class="disclaimer">${escapeHtml(s.disclaimer || '这是模型生成的虚构故事，不是人生预测。')}</div>
+      <div class="disclaimer">${escapeHtml(s.degraded ? '预置虚构案例，未调用实时模型；不是人生预测。' : (s.disclaimer || '这是模型生成的虚构故事，不是人生预测。'))}</div>
       ${qr}`;
   }
 
@@ -474,9 +502,9 @@
     state.result = {
       sessionId: '',
       title: caze.title,
-      acts: caze.acts.map((a, i) => ({ index: i + 1, name: ['滤镜', '代价', '意外'][i], caption: a.caption, imageUrl: `img/act-${i + 1}.png` })),
+      acts: caze.acts.map((a, i) => ({ index: i + 1, name: ['看起来', '后来', '那边的我'][i], caption: a.caption, imageUrl: `img/act-${i + 1}.png` })),
       ending: caze.ending,
-      disclaimer: '这是模型生成的虚构故事，不是人生预测。',
+      disclaimer: '预置虚构案例，未调用实时模型；不是人生预测。',
       degraded: true,
       updatedAt: Date.now(),
     };
@@ -605,7 +633,7 @@
       // 免责声明
       ctx.font = `20px ${serif}`;
       ctx.fillStyle = '#8a8177';
-      for (const line of wrapLines(ctx, s.disclaimer || '', maxTextWidth)) {
+      for (const line of wrapLines(ctx, s.degraded ? '预置虚构案例，未调用实时模型；不是人生预测。' : (s.disclaimer || ''), maxTextWidth)) {
         ctx.fillText(line, W / 2, y);
         y += 32;
       }
@@ -720,6 +748,315 @@
     });
   }
 
+  /* ---------------- 手机动作：真传感器驱动 ----------------
+     规则：手机动作是「用户真的动手了」的证据，做满次数才放行。
+     没有实体设备时，做满后走演示通道（服务端标记 simulated，页面照实说明）；
+     接了实体设备时，手机动作不计入放行，仍以机器回报为准。 */
+  const GESTURES = [
+    { id: 'flip', name: '翻个面', desc: '把手机翻过去再翻回来', sensor: 'orient' },
+    { id: 'shake', name: '摇一摇', desc: '用力摇三下', sensor: 'motion' },
+    { id: 'press', name: '按住不放', desc: '按住读数框两秒', sensor: null },
+    { id: 'tap', name: '拍一下', desc: '在手机背上拍一巴掌', sensor: 'motion' },
+    { id: 'blow', name: '吹一口气', desc: '对着话筒吹一下', sensor: 'mic' },
+    { id: 'still', name: '放平别动', desc: '放平，数三秒', sensor: 'motion' },
+  ];
+  const DEV = {
+    flipDeg: 110,   // 相对基准转过的角度
+    shakeG: 2.1,    // 每次摇动的加速度
+    shakeHits: 3,
+    shakeGap: 260,  // 两次有效摇动的最小间隔
+    tapG: 3.2,      // 拍一下的瞬时峰值
+    holdMs: 2000,
+    stillDev: 6,    // 「别动」允许的最大角度漂移
+    stillMs: 3000,
+    blowLevel: 0.16,
+    blowFrames: 3,
+  };
+
+  const ges = {
+    active: null, done: 0, total: 0,
+    base: null, hits: 0, last: 0, peak: 0, stillSince: 0, quietSince: 0,
+    holdRaf: 0, holdStart: 0, micStream: null, audioCtx: null, analyser: null, buf: null, micRaf: 0,
+    blowHits: 0, granted: false, nudge: null, lastRead: 0, holdDone: false,
+  };
+
+  const sensorOK = () => window.isSecureContext;
+  const needsPermission = () => typeof DeviceOrientationEvent !== 'undefined'
+    && typeof DeviceOrientationEvent.requestPermission === 'function';
+
+  function renderGestures() {
+    const wrap = $('phone-chips');
+    if (!wrap || wrap.dataset.built === '1') {
+      if (wrap) wrap.querySelectorAll('[data-gesture]').forEach((b) => { b.disabled = b.dataset.blocked === '1' || !ges.total; });
+      return;
+    }
+    wrap.dataset.built = '1';
+    wrap.innerHTML = GESTURES.map((g) => {
+      const blocked = g.sensor && !sensorOK();
+      return `<button class="gchip" type="button" data-gesture="${g.id}" data-blocked="${blocked ? 1 : 0}" aria-pressed="false"${blocked ? ' disabled' : ''}>`
+        + `<b>${g.name}</b><span>${blocked ? '需要 HTTPS' : g.desc}</span></button>`;
+    }).join('');
+    wrap.querySelectorAll('[data-gesture]').forEach((btn) => {
+      btn.addEventListener('click', () => { void armGesture(btn.dataset.gesture); });
+    });
+  }
+
+  async function askSensors() {
+    if (ges.granted) return true;
+    if (!needsPermission()) { ges.granted = true; return true; }
+    try {
+      // 必须在用户手势里调用，所以放在第一次点动作按钮时。
+      if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
+        const a = await DeviceOrientationEvent.requestPermission();
+        const b = typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission
+          ? await DeviceMotionEvent.requestPermission() : 'granted';
+        ges.granted = a === 'granted';
+        return ges.granted && b === 'granted';
+      }
+    } catch (_) { /* 拒绝了也还能用「按住不放」和手动确认 */ }
+    ges.granted = false;
+    return false;
+  }
+
+  function disarmGesture() {
+    ges.active = null;
+    cancelAnimationFrame(ges.holdRaf);
+    cancelAnimationFrame(ges.micRaf);
+    ges.micRaf = 0;
+    clearTimeout(ges.nudge);
+    if (ges.micStream) { ges.micStream.getTracks().forEach((t) => t.stop()); ges.micStream = null; }
+    if (ges.audioCtx) { try { void ges.audioCtx.close(); } catch (_) {} ges.audioCtx = null; }
+    ges.analyser = null;
+    const armed = $('phone-armed');
+    if (armed) armed.classList.add('hidden');
+    const readout = $('sensor-readout');
+    if (readout) readout.classList.remove('hold-target');
+    document.querySelectorAll('#phone-chips [data-gesture]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+    const bar = $('phone-bar-fill');
+    if (bar) bar.style.width = '0%';
+  }
+
+  async function armGesture(id) {
+    const g = GESTURES.find((x) => x.id === id);
+    if (!g) return;
+    disarmGesture();
+    if (g.sensor) {
+      const ok = await askSensors();
+      if (!ok) {
+        note('这台手机没给传感器权限。换成「按住不放」，或者点下面的手动确认。');
+        return;
+      }
+    }
+    ges.active = id;
+    ges.hits = 0; ges.peak = 0; ges.base = null; ges.stillSince = 0; ges.blowHits = 0; ges.quietSince = 0; ges.holdDone = false;
+    document.querySelector(`#phone-chips [data-gesture="${id}"]`).setAttribute('aria-pressed', 'true');
+    $('phone-armed').classList.remove('hidden');
+    $('phone-arm-title').textContent = g.id === 'press' ? '按住下面这块框，别松手' : `${g.name}：${g.desc}`;
+    $('sensor-readout').textContent = g.id === 'press' ? '按住这里不放…' : '传感器待命，动一下手机试试';
+    if (g.id === 'press') $('sensor-readout').classList.add('hold-target');
+    if (g.id === 'blow') void startBlow();
+    note('');
+    // 8 秒没反应就给一条兜底提示，别让人干等
+    ges.nudge = setTimeout(() => {
+      if (ges.active === id && !ges.done) note('还是没读到？确认用的是手机（不是电脑）、页面是 HTTPS；也可以点下面的手动确认。');
+    }, 8000);
+  }
+
+  function hit(via) {
+    if (!ges.active) return;
+    ges.done += 1;
+    if (navigator.vibrate) navigator.vibrate(via === 'manual' ? 18 : [14, 40, 14]);
+    const card = $('phone-card');
+    card.classList.remove('hit-flash');
+    void card.offsetWidth;
+    card.classList.add('hit-flash');
+    updatePhoneCount();
+    if (ges.done >= ges.total) { void finishGestureRun(); return; }
+    // 还要做下一次：重置这一轮的判定
+    ges.hits = 0; ges.peak = 0; ges.base = null; ges.stillSince = 0; ges.blowHits = 0;
+    $('phone-arm-title').textContent = `再来一次（还差 ${ges.total - ges.done} 次）`;
+    setReadout('重置好了，再来一次。');
+    const bar = $('phone-bar-fill');
+    if (bar) bar.style.width = '0%';
+  }
+
+  function updatePhoneCount() {
+    const el = $('phone-count');
+    if (el) el.textContent = `${ges.done} / ${ges.total}`;
+    const log = $('action-dots');
+    if (log && !state.deviceConnected) {
+      // 手机动作同样要把机器那排点填掉，否则看不出「动作没到就不打」
+      [...log.children].forEach((n, i) => { n.className = i < ges.done ? 'on' : i === ges.done ? 'cur' : ''; });
+    }
+  }
+
+  async function finishGestureRun() {
+    disarmGesture();
+    updatePhoneCount();
+    if (state.deviceConnected) {
+      note(`手机动作已做满 ${ges.total} 次。机器已连接，真正放行以机器回报的动作为准。`);
+      return;
+    }
+    note('动作做满，正在放行打印……');
+    try {
+      await api(`/sessions/${state.sessionId}/simulate-action`, { method: 'POST', body: {} });
+      state.lastState = 'printing';
+      showPrinting({ delivery: 'demo' });
+    } catch (err) {
+      note(`放行失败：${err.message}`);
+    }
+  }
+
+  function note(text) {
+    const el = $('phone-note');
+    if (el) el.textContent = text || '';
+  }
+
+  function resetGestures(total) {
+    disarmGesture();
+    ges.done = 0;
+    ges.total = Number(total) || 0;
+    renderGestures();
+    updatePhoneCount();
+    const sub = $('phone-sub');
+    if (sub) {
+      sub.textContent = !ges.total ? '这一步没有动作要求。'
+        : state.deviceConnected
+          ? `机器已连接：手机动作只算热身，真正放行以机器回报为准（做满 ${ges.total} 次也不代机器签字）。`
+          : `选一个动作，在手机上做满 ${ges.total} 次。做满之前，机器不会开始打印。`;
+    }
+    document.querySelectorAll('#phone-chips [data-gesture]').forEach((b) => { b.disabled = !ges.total; });
+    note('');
+  }
+
+  /* 传感器：翻个面 / 放平别动（陀螺仪） */
+  function onOrient(e) {
+    if (e.beta === null || e.gamma === null) return;
+    const now = Date.now();
+    if (now - ges.lastRead > 90) {
+      ges.lastRead = now;
+      if (ges.active === 'flip' || ges.active === 'still') {
+        const b = ges.base;
+        const d = b ? Math.max(Math.abs(e.beta - b.beta), Math.abs(e.gamma - b.gamma)) : 0;
+        const out = ges.active === 'flip'
+          ? `翻转 ${Math.round(d)}° / ${DEV.flipDeg}°`
+          : `漂移 ${Math.round(d)}° / 允许 ${DEV.stillDev}°`;
+        setReadout(out);
+        if (ges.active === 'flip') progress(d / DEV.flipDeg);
+      }
+    }
+    if (ges.active === 'flip') {
+      if (!ges.base) { ges.base = { beta: e.beta, gamma: e.gamma }; return; }
+      const d = Math.max(Math.abs(e.beta - ges.base.beta), Math.abs(e.gamma - ges.base.gamma));
+      if (d > DEV.flipDeg) hit('sensor');
+    } else if (ges.active === 'still') {
+      if (!ges.base) { ges.base = { beta: e.beta, gamma: e.gamma }; ges.stillSince = Date.now(); return; }
+      const d = Math.max(Math.abs(e.beta - ges.base.beta), Math.abs(e.gamma - ges.base.gamma));
+      if (d > DEV.stillDev) { ges.stillSince = Date.now(); progress(0); return; }
+      const held = Date.now() - ges.stillSince;
+      progress(held / DEV.stillMs);
+      if (held > DEV.stillMs) hit('sensor');
+    }
+  }
+
+  /* 传感器：摇一摇 / 拍一下（加速度计） */
+  function onMotion(e) {
+    const a = e.accelerationIncludingGravity;
+    if (!a || a.x === null) return;
+    const mag = Math.sqrt(a.x ** 2 + a.y ** 2 + a.z ** 2) / 9.81;
+    const now = Date.now();
+    if (now - ges.lastRead > 90) {
+      ges.lastRead = now;
+      if (ges.active === 'shake' || ges.active === 'tap') {
+        setReadout(`${mag.toFixed(1)} g · 已捕捉 ${ges.hits} 次`);
+      }
+    }
+    if (ges.active !== 'shake' && ges.active !== 'tap') return;
+    if (ges.active === 'tap') {
+      // 拍一下：要单次尖峰，前面还得安静一会儿，免得和「摇」混在一起
+      if (mag < 1.35) { ges.quietSince = now; return; }
+      if (now - ges.quietSince < 500) return;
+      if (mag > DEV.tapG) hit('sensor');
+      return;
+    }
+    if (mag > DEV.shakeG && now - ges.last > DEV.shakeGap) {
+      ges.last = now;
+      ges.hits += 1;
+      progress(ges.hits / DEV.shakeHits);
+      if (ges.hits >= DEV.shakeHits) hit('sensor');
+    }
+  }
+
+  if (typeof DeviceOrientationEvent !== 'undefined') window.addEventListener('deviceorientation', onOrient);
+  if (typeof DeviceMotionEvent !== 'undefined') window.addEventListener('devicemotion', onMotion);
+
+  /* 按住不放 */
+  function holdStart(ev) {
+    if (ges.active !== 'press') return;
+    ev.preventDefault();
+    const el = $('sensor-readout');
+    const t0 = Date.now();
+    const tick = () => {
+      const p = Math.min(1, (Date.now() - t0) / DEV.holdMs);
+      progress(p);
+      setReadout(`按住 ${(p * DEV.holdMs / 1000).toFixed(1)} 秒 / ${(DEV.holdMs / 1000).toFixed(1)} 秒`);
+      if (p < 1) ges.holdRaf = requestAnimationFrame(tick);
+      else { ges.holdDone = true; el.textContent = '松手。'; hit('hold'); }
+    };
+    ges.holdRaf = requestAnimationFrame(tick);
+  }
+  function holdEnd() {
+    if (ges.active !== 'press') return;
+    cancelAnimationFrame(ges.holdRaf);
+    if (ges.holdDone) return; // 已经按够了，松手不算失误
+    setReadout('松早了。再来一次，按够两秒。');
+    progress(0);
+  }
+
+  /* 吹一口气（麦克风） */
+  async function startBlow() {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('这台设备没有浏览器麦克风接口。');
+      ges.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      setReadout('拿不到麦克风权限。换成别的动作，或点下面的手动确认。');
+      return;
+    }
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    ges.audioCtx = new Ctx();
+    const src = ges.audioCtx.createMediaStreamSource(ges.micStream);
+    ges.analyser = ges.audioCtx.createAnalyser();
+    ges.analyser.fftSize = 1024;
+    src.connect(ges.analyser);
+    ges.buf = new Float32Array(ges.analyser.fftSize);
+    const loop = () => {
+      if (!ges.analyser || ges.active !== 'blow') return;
+      ges.analyser.getFloatTimeDomainData(ges.buf);
+      let sum = 0;
+      for (let i = 0; i < ges.buf.length; i++) sum += ges.buf[i] * ges.buf[i];
+      const rms = Math.sqrt(sum / ges.buf.length);
+      setReadout(`气流 ${(rms * 100).toFixed(0)} / 门槛 ${(DEV.blowLevel * 100).toFixed(0)}`);
+      progress(rms / DEV.blowLevel);
+      if (rms > DEV.blowLevel) {
+        ges.blowHits += 1;
+        if (ges.blowHits >= DEV.blowFrames) { hit('sensor'); return; }
+      } else if (ges.blowHits > 0 && rms < DEV.blowLevel * 0.6) {
+        ges.blowHits = 0;
+      }
+      ges.micRaf = requestAnimationFrame(loop);
+    };
+    loop();
+  }
+
+  function setReadout(text) {
+    const el = $('sensor-readout');
+    if (el) el.textContent = text;
+  }
+  function progress(ratio) {
+    const bar = $('phone-bar-fill');
+    if (bar) bar.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
+  }
+
   /* ---------------- 绑定 ---------------- */
   function bind() {
     $('input-text').addEventListener('input', (e) => {
@@ -733,6 +1070,7 @@
       if (!state.sessionId) return;
       $('btn-simulate').disabled = true;
       try {
+        if (ges.total) { ges.done = ges.total; updatePhoneCount(); }
         await api(`/sessions/${state.sessionId}/simulate-action`, { method: 'POST', body: {} });
         state.lastState = 'printing';
         showPrinting({ delivery: 'demo' });
@@ -742,12 +1080,29 @@
         $('btn-simulate').disabled = false;
       }
     });
+    $('phone-cancel').addEventListener('click', () => { disarmGesture(); note('换一个动作。'); });
+    $('phone-cancel').addEventListener('pointerdown', (e) => e.stopPropagation());
+    const holdEl = $('sensor-readout');
+    holdEl.addEventListener('pointerdown', holdStart);
+    holdEl.addEventListener('pointerup', holdEnd);
+    holdEl.addEventListener('pointercancel', holdEnd);
+    holdEl.addEventListener('pointerleave', holdEnd);
     $('btn-save').addEventListener('click', saveLongImage);
     $('btn-share').addEventListener('click', copyShare);
     document.querySelectorAll('[data-action="restart"]').forEach((el) => el.addEventListener('click', restart));
     $('btn-connect').addEventListener('click', openSettings);
     $('btn-settings').addEventListener('click', openSettings);
-    $('btn-status').addEventListener('click', openSettings);
+    $('btn-status').addEventListener('click', openMode);
+    $('btn-mode-close').addEventListener('click', closeMode);
+    $('btn-mode-settings').addEventListener('click', () => { closeMode(); openSettings(); });
+    $('mode-modal').addEventListener('click', (e) => { if (e.target === $('mode-modal')) closeMode(); });
+    $('mode-modal').addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      const controls = [$('btn-mode-close'), $('btn-mode-settings')];
+      if (e.shiftKey && document.activeElement === controls[0]) { e.preventDefault(); controls[1].focus(); }
+      else if (!e.shiftKey && document.activeElement === controls[1]) { e.preventDefault(); controls[0].focus(); }
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('mode-modal').classList.contains('hidden')) closeMode(); });
     $('btn-close-settings').addEventListener('click', closeSettings);
     $('btn-save-settings').addEventListener('click', saveSettings);
     $('btn-toggle-key').addEventListener('click', () => {
@@ -764,6 +1119,13 @@
 
   bind();
   setupMic();
+  renderGestures();
+  if (!window.isSecureContext) {
+    const el = $('phone-insecure');
+    el.textContent = '这页是 http 打开的非安全地址，浏览器直接禁用了陀螺仪、加速度计和麦克风——手机动作只能靠「按住不放」。'
+      + '要用真传感器：手机上装一次自签证书，或者用 https 隧道（见 README「手机传感器」）。';
+    el.classList.remove('hidden');
+  }
   showView('input');
   void probe();
   route();

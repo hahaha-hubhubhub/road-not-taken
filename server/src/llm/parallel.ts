@@ -29,10 +29,11 @@ const Lens = z.string().trim().max(30).refine((value) => value === '' || value.l
 const Text = z.string().trim().min(8).max(130);
 const Path = z.object({ label: z.string().trim().min(2).max(32), gain: Text, cost: Text, envy: Text }).strict();
 const Parallel = z.object({ title: z.string().trim().min(2).max(36), assumption: Text, present: Path, alternate: Path, synthesis: Text }).strict();
-const AlternateOnly = z.object({ title: z.string().trim().min(2).max(36), alternate: Path }).strict();
+const AlternateOnly = z.object({ title: z.string().trim().min(2).max(36), alternate: Path, synthesis: Text }).strict();
+const ChallengeType = z.enum(['flip', 'shake', 'press', 'free']);
 const Revision = z.object({ newReading: Text, reason: Text, capsuleLine: z.string().trim().min(4).max(80) }).strict();
 const CreateInput = z.object({ text: z.string().trim().min(1).max(100), presentContext: OptionalContext.optional().default(''), lens: Lens.optional().default('') }).strict();
-const ReviseInput = z.object({ text: z.string().trim().min(1).max(100), lens: Lens.optional().default(''), original: Parallel, challenge: z.string().trim().min(5).max(100) }).strict();
+const ReviseInput = z.object({ text: z.string().trim().min(1).max(100), lens: Lens.optional().default(''), original: Parallel, challenge: z.string().trim().min(5).max(100), challengeType: ChallengeType.optional().default('free') }).strict();
 const UNKNOWN_PRESENT = {
   label: '现在这条路 · 未提供信息',
   gain: '你没有提供现实经历；这里不会替你编造目前的所得。',
@@ -46,14 +47,71 @@ const pathSchema = { type: 'object', additionalProperties: false, required: ['la
 const parallelSchema = { type: 'object', additionalProperties: false, required: ['title', 'assumption', 'present', 'alternate', 'synthesis'], properties: {
   title: { type: 'string' }, assumption: { type: 'string' }, present: pathSchema, alternate: pathSchema, synthesis: { type: 'string' },
 }};
-const alternateSchema = { type: 'object', additionalProperties: false, required: ['title', 'alternate'], properties: {
-  title: { type: 'string' }, alternate: pathSchema,
+const alternateSchema = { type: 'object', additionalProperties: false, required: ['title', 'alternate', 'synthesis'], properties: {
+  title: { type: 'string' }, alternate: pathSchema, synthesis: { type: 'string' },
 }};
 const revisionSchema = { type: 'object', additionalProperties: false, required: ['newReading', 'reason', 'capsuleLine'], properties: {
   newReading: { type: 'string' }, reason: { type: 'string' }, capsuleLine: { type: 'string' },
 }};
 
-const system = `你是「没走的路」的互动叙事作者，不是占卜师或心理治疗师。只输出 JSON，不输出 Markdown。全部简体中文，具体、克制、轻微幽默而不残酷。两条路都有所得和日常代价，不能把疾病、死亡、贫困或真实人物的过错当作惩罚或笑点。绝对不要臆断或补全用户现实经历。若只知道未走的选择，仅写那条没走的路；若用户自愿补充了当前线索，现实线也只能写基于这句线索的虚构情境，不宣称是其真实经历。不要断言未来。每个字段 20-70 字，意象要生动、简短；envy 表示这条路可能会怀念什么；绝不能为未知的现实编造细节。不得包含私密真实人物推断或违法色情内容。`;
+const system = `你是《没走的路》里的毒舌药剂师。
+玩家递来一句「如果当时」。
+你不卖鸡汤。你开账单。
+
+## 柜台规矩
+- 先认账。那条路确实诱人。
+- 再立规矩。好处后面跟代价。
+- 故意丑化那条路。
+- 这是喜剧化虚构。不是预测。
+- 枪口朝路。不要朝玩家。
+- 只损流程、账单、机器和规矩。
+- 不说「你选对了」。
+- 不安慰。也不教育。
+
+## 说话方式
+- 像柜台后的小老板。
+- 话短。理硬。不绕。
+- 单句尽量不超过 25 字。
+- 每句话要有主语和动作。
+- 数字要能查。物件要能看见。
+- 网感靠节奏。不要硬塞热梗。
+- 禁止品牌播音腔。
+- 禁止心理报告腔。
+- 禁止 AI 金句。
+- 禁止空话：压力、消耗、成长、意义。
+
+## 三格对应字段
+- gain：广告片。先把好处认清。
+- cost：营业后台。把账单摊开。
+- envy：本人证词。让那边的我认账。
+
+每个字段 20 到 70 字。
+先具体。再好笑。
+一格只立一个规矩。
+
+## 动作对应补印
+- flip：翻出隐藏条款。
+- shake：摇出具体账单。
+- press：让那边的我吐槽。
+
+## 可以损什么
+考勤、审批、会议、团建、KPI。
+平台抽成、算法、租房、装修。
+物业、签证、亲戚问话、AI 客服。
+机器坏了。系统崩了。快递丢了。
+事情可以很惨。人不能被羞辱。
+
+## 只有这四条不碰
+1. 出现自杀、自伤或正在发生的暴力。
+   立刻停止搞笑。改用关怀回应。
+2. 不编排可指认的真实个人。
+3. 不拿身份和身体特征当笑点。
+4. 不写违法教程和色情内容。
+
+## 隐私规矩
+没有现实线索，就不猜现实生活。
+有线索，也只当虚构情境。
+不要把推测写成事实。`;
 
 async function structured<T>(req: Request, schema: object, name: string, prompt: string, validator: z.ZodType<T>): Promise<T> {
   const client = getClient(req.header('x-stepfun-api-key') || undefined);
@@ -82,7 +140,7 @@ function verifyText(text: string, res: Response): boolean {
   const verdict = checkInput(text);
   if (verdict.safe) return true;
   res.status(422).json({ error: verdict.reason === 'crisis'
-    ? '这段话值得被认真对待，而不是做成游戏。请联系信任的人；如果有即刻危险，请联系当地急救服务。'
+    ? '这段先别拿来玩。请联系信任的人；如果有马上伤害自己的风险，直接联系当地急救服务。'
     : verdict.advice || '这段输入不适合生成故事，请换个表述。', care: verdict.reason === 'crisis' });
   return false;
 }
@@ -92,12 +150,12 @@ function fail(res: Response, err: unknown): void {
   // 第三方错误可能回显用户输入或服务商响应；不把原始错误写进日志或返回浏览器。
   console.error('[parallel]', err instanceof Error ? err.name : 'UnknownError');
   const known = /API Key|MOCK_LLM|模型返回为空|模型输出格式|内容安全检查/.test(msg);
-  res.status(/API Key|MOCK_LLM/.test(msg) ? 503 : 502).json({ error: known ? msg : '模型服务暂不可用，请稍后重试或选择预置案例。' });
+  res.status(/API Key|MOCK_LLM/.test(msg) ? 503 : 502).json({ error: known ? msg : '模型服务暂不可用，请稍后重试或玩现成案例。' });
 }
 
 parallelRouter.post('/create', async (req: Request, res: Response) => {
   const input = CreateInput.safeParse(req.body);
-  if (!input.success) { res.status(400).json({ error: '请输入 10–100 字；可选择性补充现实线索与关注点。' }); return; }
+  if (!input.success) { res.status(400).json({ error: '请输入 10–100 字；现实线索和关注点都可以不填。' }); return; }
   if (!verifyText(input.data.text, res)) return;
   if (input.data.presentContext && !verifyText(input.data.presentContext.padEnd(10, '。'), res)) return;
   if (input.data.lens && !verifyText(input.data.lens.padEnd(10, '。'), res)) return;
@@ -107,12 +165,41 @@ parallelRouter.post('/create', async (req: Request, res: Response) => {
     let story: z.infer<typeof Parallel>;
     if (input.data.presentContext) {
       const generated = await structured(req, parallelSchema, 'parallel_paths',
-        `未走的路：${input.data.text}\n用户自愿提供的当前线索：${input.data.presentContext}\n想关注的角度：${lens}。请为两条路分别写出可能的所得、日常代价、互相羡慕之处。当前线索之外的生活细节只能作为虚构情境，不得声称知道用户现实。assumption 应明确这是基于用户一句线索的虚构推演。synthesis 不给哪条判优。`, Parallel);
+        `没走的路：${input.data.text}
+现实线索：${input.data.presentContext}
+关注角度：${lens}
+
+按三格开账。
+gain 先认好处。
+cost 打开营业后台。
+envy 让那边的我认账。
+每格 20 到 70 字。
+必须有具体物件和数字。
+title 8 到 16 字。
+synthesis 10 到 30 字。
+它只负责收尾。不要说教。
+
+现实线索只当虚构情境。
+没写的细节，不准当事实。`, Parallel);
       story = { ...generated, assumption: '现在这条路仅依据你自愿提供的一句线索想象；未提供的细节不是事实。', present: { ...generated.present, label: '现在这条路 · 情境推演' } };
     } else {
       const generated = await structured(req, alternateSchema, 'alternate_path_only',
-        `未走的路：${input.data.text}\n想关注的角度：${lens}。用户没有提供任何现实经历，不要猜测现在选了什么，也不要写现在的生活。只写那条未走之路：可能的所得、代价，以及那条路的人可能会怀念的“尚有选择的空间”（不是猜测真实现状）。`, AlternateOnly);
-      story = { ...generated, assumption: '你没有提供现在这条路的信息；这一边保持未知，不让 AI 补写你的现实。', present: UNKNOWN_PRESENT, synthesis: '另一条路有风景也有代价；现在这条路的故事，只有你自己能补上。' };
+        `没走的路：${input.data.text}
+关注角度：${lens}
+
+玩家没给现实经历。
+不准猜他现在过得怎样。
+只给没走的路开账。
+
+gain 先认好处。
+cost 打开营业后台。
+envy 让那边的我认账。
+每格 20 到 70 字。
+必须有具体物件和数字。
+title 8 到 16 字。
+synthesis 8 到 40 字。
+短句收尾。不要说教。`, AlternateOnly);
+      story = { ...generated, assumption: '你没有提供现在这条路的信息；这一边保持未知，不让 AI 补写你的现实。', present: UNKNOWN_PRESENT, synthesis: generated.synthesis };
     }
     res.json({ source: 'ai', story, lens: input.data.lens, hasPresentContext: Boolean(input.data.presentContext), durationMs: Date.now() - start, model: req.header('x-stepfun-model') || config.stepfun.model });
   } catch (err) { fail(res, err); }
@@ -120,13 +207,36 @@ parallelRouter.post('/create', async (req: Request, res: Response) => {
 
 parallelRouter.post('/revise', async (req: Request, res: Response) => {
   const input = ReviseInput.safeParse(req.body);
-  if (!input.success) { res.status(400).json({ error: '改判内容无效；请先生成双路故事，再写 5–100 字异议。' }); return; }
+  if (!input.success) { res.status(400).json({ error: '这个动作的小字无效；先让机器打印出票，再写 5–100 字。' }); return; }
   if (!verifyText(input.data.text, res) || !verifyText(input.data.challenge.padEnd(10, '。'), res)) return;
   if (input.data.lens && !verifyText(input.data.lens.padEnd(10, '。'), res)) return;
   const start = Date.now();
   try {
+    const evidence = {
+      flip: `玩家在机器上把票翻了个面，想看看这条路背面没写进广告的小字：${input.data.original.alternate.gain}`,
+      shake: `玩家摇了摇机器，把这条路没写进广告的账单摇了出来：${input.data.original.alternate.cost}`,
+      press: `玩家按住不放，让这条路里的那个虚构角色自己出来吐槽：${input.data.original.alternate.envy}`,
+      free: '玩家自己提出的一条无害的日常麻烦',
+    }[input.data.challengeType];
     const revision = await structured(req, revisionSchema, 'parallel_revision',
-      `原输入：${input.data.text}\n关注角度：${input.data.lens || '未指定'}\n原双路故事：${JSON.stringify(input.data.original)}\n用户的异议：${input.data.challenge}\n${input.data.original.present.label.includes('未提供信息') ? '现实经历未知：绝不能在改判中新增关于现在的生活事实。' : '现实线只是基于一句自愿线索的虚构情境，不要称为事实。'}\n只修订原 synthesis 的判断，不改写两条路的事实，不贬低任何一条路。newReading 是响应异议之后的新理解；reason 用一两句可观察的理由解释变化（不是隐藏思维链）；capsuleLine 是可放进纸胶囊的温柔、有趣、简短的一句话。`, Revision);
-    res.json({ source: 'ai', revision: { oldReading: input.data.original.synthesis, ...revision }, durationMs: Date.now() - start, model: req.header('x-stepfun-model') || config.stepfun.model });
+      `没走的路：${input.data.text}
+关注角度：${input.data.lens || '未指定'}
+原票：${JSON.stringify(input.data.original)}
+动作：${input.data.challengeType}
+动作证据：${evidence}
+玩家补充：${input.data.challenge}
+${input.data.original.present.label.includes('未提供信息') ? '现实经历未知。不要补写现实。' : '现实线只是虚构情境。不要当事实。'}
+
+newReading 是补印的小字。
+一到两句。20 到 70 字。
+翻面，写隐藏条款。
+摇一摇，写具体账单。
+按住，写那边的我吐槽。
+不要重复原票。
+要有物件、数字和次数。
+reason 只说这次翻出什么。
+capsuleLine 12 到 40 字。
+短。损。不要说教。`, Revision);
+    res.json({ source: 'ai', revision: { oldReading: input.data.original.synthesis, ...revision }, challengeType: input.data.challengeType, durationMs: Date.now() - start, model: req.header('x-stepfun-model') || config.stepfun.model });
   } catch (err) { fail(res, err); }
 });

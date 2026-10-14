@@ -1,4 +1,5 @@
-import type { Server } from 'node:http';
+import type { Server as HttpServer } from 'node:http';
+import type { Server as HttpsServer } from 'node:https';
 import { randomUUID } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
 import { bus } from '../bus.js';
@@ -25,7 +26,7 @@ export class DeviceGateway {
   private wss: WebSocketServer | null = null;
   private conns = new Map<WebSocket, DeviceConn>();
 
-  attach(server: Server): void {
+  attach(server: HttpServer | HttpsServer): void {
     this.wss = new WebSocketServer({ noServer: true });
     server.on('upgrade', (req, socket, head) => {
       let pathname = '';

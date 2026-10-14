@@ -3,132 +3,216 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#fff9f2" />
-  <meta name="description" content="没走的路：两条平行人生，彼此回望。可交互的黑客松预赛 Demo。" />
-  <title>没走的路 · 双面胶囊 Demo</title>
+  <meta name="theme-color" content="#ffe9f0" />
+  <meta name="description" content="没走的路 · 后悔药贩卖机：把「如果当时……」写成一张热敏票，做动作翻出它的副作用，卷进胶囊带走。" />
+  <title>没走的路 · 后悔药贩卖机</title>
   <link rel="icon" type="image/svg+xml" href="img/demo-mark.svg" />
   <link rel="stylesheet" href="demo.css" />
   <script src="demo.js" defer></script>
 </head>
-<body>
-  <div class="ambient ambient-a" aria-hidden="true"></div><div class="ambient ambient-b" aria-hidden="true"></div>
-  <div class="app-shell">
-    <header class="site-header">
-      <a class="brand" href="demo.html" aria-label="没走的路，返回开始页">
-        <span class="brand-mark" aria-hidden="true"><span></span></span>
+<body data-screen="start">
+  <div class="ambient" aria-hidden="true"><i class="blob blob-a"></i><i class="blob blob-b"></i><i class="blob blob-c"></i></div>
+
+  <div class="phone">
+    <header class="topbar">
+      <a class="brand" href="demo.html" aria-label="没走的路，回到开始">
+        <span class="brand-mark" aria-hidden="true"></span>
         <span>没走的路<small>ROAD NOT TAKEN</small></span>
       </a>
-      <div class="header-right">
-        <span class="demo-label">HACKATHON DEMO <i></i> V 0.2</span>
-        <button id="status" class="status-pill" type="button" aria-label="查看模型连接设置">检查连接中</button>
-        <button id="settings-open" class="settings-btn" type="button" aria-label="打开模型设置" title="模型设置">
+      <div class="topbar-right">
+        <span id="device-badge" class="device-badge" hidden>机器在线</span>
+        <button id="status" class="status-pill" type="button" aria-haspopup="dialog" aria-controls="mode-modal">检查中</button>
+        <button id="settings-open" class="icon-btn" type="button" aria-label="打开设置" title="设置">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2v2m0 13.6v2M4.2 12h2m11.6 0h2M5.9 5.9l1.4 1.4m9.4 9.4 1.4 1.4m0-12.2-1.4 1.4M7.3 16.7l-1.4 1.4"/><circle cx="12" cy="12" r="3.2"/></svg>
         </button>
       </div>
     </header>
 
+    <div class="dots" id="dots" aria-label="体验进度">
+      <span class="dot" data-step="1"><i></i>写</span>
+      <span class="dot" data-step="2"><i></i>做动作</span>
+      <span class="dot" data-step="3"><i></i>取胶囊</span>
+    </div>
+
     <main>
-      <div class="stage-bar" aria-label="体验进度"><span id="stage-label">01 / 写下岔路</span><div class="stage-track"><i id="stage-progress"></i></div><span>04 / 带走纸芯</span></div>
-      <section id="screen-input" class="screen">
-        <div class="hero">
-          <div class="hero-copy">
-            <span class="eyebrow"><span class="eyebrow-line"></span> A LITTLE EXPERIMENT WITH REGRET</span>
-            <h1>另一条路，<br><em>也有红绿灯。</em></h1>
-            <p>写下没走的路。现在的经历由你决定要不要补充；留空时，AI 不会装作认识你。</p>
-            <div class="hero-tags"><span>✦ 现实线索自愿填写</span><span>✦ 你可以反驳 AI</span><span>✦ 一粒纸上胶囊</span></div>
+      <!-- ① 写 -->
+      <section id="screen-start" class="screen">
+        <p class="eyebrow">一台专门卖后悔药的机器</p>
+        <h1 class="big-title">后悔药<br><em>贩卖机</em></h1>
+        <p class="lede">脑子里那条路总自带柔光。写一句「如果当时……」，对机器做一个动作，它吐出一张票——那条路的副作用说明书。</p>
+
+        <ol class="steps" id="steps">
+          <li><b>1</b><span>写一句「如果当时……」</span></li>
+          <li><b>2</b><span>对机器做一个动作：翻个面 / 摇一摇 / 按住不放</span></li>
+          <li><b>3</b><span>拿走打印出来的票，卷进胶囊带走</span></li>
+        </ol>
+
+        <label class="field-label" for="choice-input">你当时没走哪条路？</label>
+        <div class="textbox">
+          <textarea id="choice-input" rows="3" maxlength="100" aria-describedby="input-hint" placeholder="如果当时我……"></textarea>
+          <span id="count">0 / 100</span>
+        </div>
+        <p id="input-hint" class="hint">这段话会发给你配置的模型。别放姓名、电话、住址或别人的隐私；公开演示也别写真实伤心事。</p>
+
+        <details id="present-details" class="fold">
+          <summary>想让 AI 也看看现在这条路？（可不填）</summary>
+          <div class="fold-body">
+            <label class="field-label" for="present-input">你现在走哪条？（可不填）</label>
+            <input id="present-input" type="text" maxlength="80" autocomplete="off" placeholder="例如：我现在在老家上班" />
+            <p class="hint">不填就不猜。收起会清掉这句话。</p>
           </div>
-          <div class="hero-art" aria-hidden="true">
-            <div class="sun-orb"></div><div class="cloud cloud-one"></div><div class="cloud cloud-two"></div>
-            <svg class="road-art" viewBox="0 0 500 360" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M248 327C244 267 202 233 137 223C76 213 73 169 97 136" stroke="#324CE0" stroke-width="56" stroke-linecap="round"/>
-              <path d="M249 327C255 273 308 240 378 207C427 184 413 135 389 116" stroke="#FF693A" stroke-width="56" stroke-linecap="round"/>
-              <path d="M246 322C241 269 196 237 131 227C75 219 74 172 100 137" stroke="#A6BAFF" stroke-width="5" stroke-linecap="round" stroke-dasharray="13 18"/>
-              <path d="M251 321C257 270 314 239 381 205C427 181 411 138 387 118" stroke="#FFBF94" stroke-width="5" stroke-linecap="round" stroke-dasharray="13 18"/>
-              <path d="M98 67l11 27 28 4-28 5-11 28-9-28-28-5 28-4 9-27Z" fill="#F9C844"/>
-              <path d="m421 59 5 12 13 3-13 2-5 13-4-13-13-2 13-3 4-12Z" fill="#F9C844"/>
-              <path d="M242 292c-25 0-44 18-44 40 0 25 44 52 50 58 7-6 50-33 50-58 0-22-20-40-47-40h-9Z" fill="#FE4B8D" stroke="#fff" stroke-width="7"/>
-            </svg>
-            <div class="floating-ticket ticket-blue"><span>现在的我</span><b>也在路上 ↗</b></div>
-            <div class="floating-ticket ticket-orange"><span>没走的我</span><b>也有故事 ↗</b></div>
-            <div class="art-caption">TWO ROADS · ONE YOU</div>
+        </details>
+
+        <p id="form-error" class="error" role="alert" hidden></p>
+        <button id="generate" class="big-btn" type="button">写好了，去投币 <span aria-hidden="true">↗</span></button>
+
+        <div class="presets">
+          <span class="hint">不想写？先玩现成的：</span>
+          <div class="preset-row">
+            <button class="preset" type="button" data-preset="dali">辞职去大理开咖啡店</button>
+            <button class="preset" type="button" data-preset="art">学美术而不是计算机</button>
+            <button class="preset" type="button" data-preset="beijing">毕业后留在北京</button>
+            <button class="preset" type="button" data-preset="stay">如果当时没有和他分手</button>
           </div>
         </div>
-        <div class="workspace">
-          <section class="glass-card input-card" aria-labelledby="input-heading">
-            <div class="card-head"><span class="step-badge">01</span><span class="micro-label">THE FORK IN THE ROAD</span><span class="sparkle" aria-hidden="true">✳</span></div>
-            <h2 id="input-heading">你的“如果当时……”</h2>
-            <p class="helper">从一个具体的选择开始。无需姓名，也别写他人的隐私。</p>
-            <label class="field-label" for="choice-input">那条没有走的路</label>
-            <div class="textarea-wrap"><textarea id="choice-input" rows="3" maxlength="100" aria-describedby="input-hint" placeholder="如果当时我……"></textarea><span id="count">0 / 100</span></div>
-            <p id="input-hint" class="field-hint">文字会发送至你配置的本地服务与模型供应商。本站不持久化这段输入，但供应商如何处理请查看其条款；不要写姓名、联系方式或敏感经历。</p>
-            <details id="present-details" class="optional-details">
-              <summary>可选：补充现在这条路的一句线索</summary>
-              <div class="optional-content">
-                <label class="field-label" for="present-input">你现在选择了什么？（选填，不用解释原因）</label>
-                <input id="present-input" type="text" maxlength="80" autocomplete="off" aria-describedby="present-hint" placeholder="例如：我现在在本地工作" />
-                <p id="present-hint" class="field-hint">不填时“现在”保持未知，不会由 AI 补写。填写后，这句话会随故事请求发给你配置的服务端与模型供应商；收起本栏会清空内容。</p>
+      </section>
+
+      <!-- ② 生成 -->
+      <section id="screen-wait" class="screen hidden" aria-live="polite">
+        <div class="mixer" aria-hidden="true"><span class="pill"></span><span class="ring"></span><span class="ring ring-b"></span></div>
+        <h2>正在给那条路<br>灌糖衣。</h2>
+        <p class="lede" id="wait-lede">机器正在读你那条路的广告词。</p>
+        <span id="elapsed" class="elapsed">已等 0 秒</span>
+        <button class="text-btn" type="button" data-back="start">回去改一句</button>
+      </section>
+
+      <!-- ③ 票 -->
+      <section id="screen-ticket" class="screen hidden">
+        <div class="ticket-stage">
+          <div class="flipper" id="flipper">
+            <article class="face front" id="face-front">
+              <div class="ticket-head">
+                <span class="brandline">没走的路 · 后悔药贩卖机</span>
+                <span id="ticket-no">NO.0001</span>
               </div>
-            </details>
-            <span class="field-label" id="lens-label">你希望故事更关注哪一面？（选填）</span>
-            <div id="focus-options" class="focus-options" role="group" aria-labelledby="lens-label">
-              <button class="focus-chip" type="button" data-focus="时间自主" aria-pressed="false"><span class="chip-icon">↗</span> 时间</button>
-              <button class="focus-chip" type="button" data-focus="经济安全" aria-pressed="false"><span class="chip-icon">◈</span> 经济</button>
-              <button class="focus-chip" type="button" data-focus="关系相处" aria-pressed="false"><span class="chip-icon">∞</span> 关系</button>
-              <button class="focus-chip" type="button" data-focus="学习成长" aria-pressed="false"><span class="chip-icon">✳</span> 成长</button>
-              <button class="focus-chip" type="button" data-focus="创作表达" aria-pressed="false"><span class="chip-icon">✦</span> 表达</button>
-              <button class="focus-chip" type="button" data-focus="生活节奏" aria-pressed="false"><span class="chip-icon">◌</span> 节奏</button>
-            </div>
-            <label class="field-label custom-lens-label" for="lens-custom">或写一个你自己的关注点（选填，30 字内）</label>
-            <input id="lens-custom" class="custom-lens" type="text" maxlength="30" autocomplete="off" placeholder="比如：和家人相处、冒险感……" />
-            <p id="form-error" class="form-error hidden" role="alert"></p>
-            <button id="generate" class="cta" type="button"><span>展开故事，看看留白</span><span class="cta-arrow" aria-hidden="true">↗</span></button>
-            <div class="sample-area"><span>或者先玩一个预置案例</span><div class="sample-list"><button type="button" data-preset="dali">辞职去大理开咖啡店 <b>↗</b></button><button type="button" data-preset="art">去学美术而不是计算机 <b>↗</b></button></div></div>
-          </section>
-          <aside class="glass-card side-card">
-            <div class="side-top"><span class="micro-label">HOW IT WORKS</span><span class="doodle" aria-hidden="true">✦</span></div>
-            <div class="mini-capsule" aria-hidden="true"><div class="mini-half"></div><span>?</span></div>
-            <h3>一粒有两面的<br>“后悔药”</h3>
-            <ol class="journey-list"><li><b>01</b><span>AI 只写你愿意提供的部分</span></li><li><b>02</b><span>不满意？亲自给 AI 提异议</span></li><li><b>03</b><span>把新的理解收进纸芯</span></li></ol>
-            <p class="side-note">不是预测，也不是心理建议。网页里的胶囊是视觉隐喻，<strong>没有真实卷纸或出仓。</strong></p>
-          </aside>
+              <h2 id="ticket-title">…</h2>
+              <p class="route-line">这条路：<span id="ticket-sugar">…</span></p>
+              <div class="comic">
+                <section class="panel" id="front-panel">
+                  <div class="panel-art" id="art-1" aria-hidden="true"></div>
+                  <div class="panel-caption"><b>01 · 看起来</b><span id="cap-1">…</span></div>
+                </section>
+                <section class="panel blank" data-blank="2"><span class="blank-mark">✕</span><div class="panel-caption"><b>02 · 后来</b><span>对着机器做一个动作，这一格才会印出来</span></div></section>
+                <section class="panel blank" data-blank="3"><span class="blank-mark">✕</span><div class="panel-caption"><b>03 · 那边的我</b><span>等你翻个面 / 摇一摇 / 按住不放</span></div></section>
+              </div>
+              <p class="ticket-foot" id="ticket-foot">…</p>
+              <p class="ticket-foot soft" id="ticket-assumption">…</p>
+              <span class="stamp">虚构</span>
+              <span class="scroll-cue" aria-hidden="true">往下翻 · 后面还有两格 ▾</span>
+            </article>
+            <article class="face back" id="face-back">
+              <div class="ticket-head">
+                <span class="brandline">三格漫画 · 副作用说明书</span>
+                <span id="ticket-no-2">NO.0001</span>
+              </div>
+              <div class="comic">
+                <section class="panel">
+                  <div class="panel-art" id="art-1b" aria-hidden="true"></div>
+                  <div class="panel-caption"><b>01 · 看起来</b><span id="cap-1b">…</span></div>
+                </section>
+                <section class="panel">
+                  <div class="panel-art" id="art-2" aria-hidden="true"></div>
+                  <div class="panel-caption"><b>02 · 后来</b><span id="cap-2">…</span></div>
+                </section>
+                <section class="panel">
+                  <div class="panel-art" id="art-3" aria-hidden="true"></div>
+                  <div class="panel-caption"><b>03 · 那边的我</b><span id="cap-3">…</span></div>
+                </section>
+                <div class="bubble hidden" id="extra-wrap">
+                  <span class="bubble-who" id="extra-key">你翻出来的</span>
+                  <p id="ticket-extra">…</p>
+                </div>
+              </div>
+              <p class="ticket-foot">用法用量：对着机器做一个动作 · 储存：卷进胶囊<br>警告：虚构叙事，展示道具，不可吞食</p>
+              <span class="scroll-cue" aria-hidden="true">往下翻 · 背面还有一句 ▾</span>
+            </article>
+          </div>
+          <span class="holo" id="holo" aria-hidden="true"></span>
         </div>
+        <p class="hint center" id="ticket-note"></p>
       </section>
 
-      <section id="screen-loading" class="screen scene-screen hidden" aria-live="polite">
-        <div class="loading-orb" aria-hidden="true"><div class="loading-pill"></div><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div></div>
-        <span class="eyebrow">TWO SIDES OF A STORY</span><h2>正在为两条路，<br>各留一盏灯。</h2>
-        <p id="loading-note">等待模型返回结构化故事。这里只显示真实等待时间，不模拟思考过程。</p>
-        <span id="elapsed" class="elapsed">已等待 0 秒</span>
-        <button id="loading-back" class="text-button" type="button">返回修改输入</button>
+      <!-- 打印中 -->
+      <section id="screen-print" class="screen hidden" aria-live="polite">
+        <div class="printer" aria-hidden="true"><span class="slot"></span><i class="strip"></i></div>
+        <h2>吭哧吭哧<br>打印中……</h2>
+        <p class="lede" id="print-note">纸带从缝里往外爬。别扯，扯断了模型不赔。</p>
       </section>
 
-      <section id="screen-compare" class="screen hidden">
-        <div class="result-intro"><div><span class="eyebrow">02 / TWO POSSIBLE LIVES</span><h2 id="story-title">两条路的天气预报</h2><p id="result-copy">未提供的现实，留白而不编造。</p></div><span id="source-tag" class="source-tag">预置演示案例</span></div>
-        <div class="result-toolbar"><button id="swap-view" class="toolbar-btn" type="button" aria-label="交换两张卡片的显示顺序">⇄ <span>交换视角</span></button><button id="assumption-toggle" class="toolbar-btn" type="button" aria-expanded="false" aria-controls="assumption-panel">◎ <span>这次想象的前提</span></button><button id="tech-toggle" class="toolbar-btn" type="button" aria-expanded="false" aria-controls="tech-panel">✳ <span>AI 如何参与？</span></button></div>
-        <div id="assumption-panel" class="info-panel hidden"><strong>想象的前提</strong><p id="assumption-text"></p></div>
-        <div id="tech-panel" class="info-panel hidden"><strong>本次技术说明</strong><p id="tech-text"></p></div>
-        <div id="path-grid" class="path-grid">
-          <article class="path-card path-now"><div class="path-art now-art" aria-hidden="true"><span class="art-window"></span><span class="art-person"></span><span class="art-line"></span></div><div class="path-content"><div class="path-meta"><span id="now-meta">01 / THIS ROAD</span><span class="path-dot"></span></div><h3 id="now-label">现在的我</h3><div class="story-bit"><span id="now-gain-label">可能的所得</span><p id="now-gain"></p></div><div class="story-bit"><span id="now-cost-label">可能的代价</span><p id="now-cost"></p></div><div class="story-bit envy-bit"><span id="now-envy-label">可能的回望</span><p id="now-envy"></p></div></div></article>
-          <article class="path-card path-other"><div class="path-art other-art" aria-hidden="true"><span class="art-window"></span><span class="art-person"></span><span class="art-line"></span></div><div class="path-content"><div class="path-meta"><span>02 / THE OTHER ROAD</span><span class="path-dot"></span></div><h3 id="other-label">没走的我</h3><div class="story-bit"><span>可能的所得</span><p id="other-gain"></p></div><div class="story-bit"><span>可能的代价</span><p id="other-cost"></p></div><div class="story-bit envy-bit"><span>可能会怀念什么</span><p id="other-envy"></p></div></div></article>
+      <!-- ④ 胶囊 -->
+      <section id="screen-capsule" class="screen hidden">
+        <h2 class="big-title">验完副作用，<br><em>这药可以收下了。</em></h2>
+        <p class="lede">后悔药一口下去，副作用是：那条路也就那样。</p>
+        <div class="capsule-stage" aria-hidden="true">
+          <span class="capsule-shadow"></span>
+          <div class="capsule" id="capsule">
+            <span class="cap-left"></span>
+            <span class="cap-right"></span>
+            <span class="cap-label" id="capsule-label">没走的路</span>
+          </div>
+          <i class="spark spark-a">✦</i><i class="spark spark-b">✳</i>
         </div>
-        <div class="synthesis-card"><div class="synthesis-star" aria-hidden="true">✳</div><div><span>两条路交会的地方</span><p id="synthesis"></p></div></div>
-        <div class="challenge-card"><div><span class="eyebrow">03 / YOUR TURN TO OBJECT</span><h3>等等，我有不同意见。</h3><p id="challenge-explainer">真正的第二次模型调用只改判读，不重写你没说过的经历。</p></div><div class="challenge-controls"><label for="challenge-input">你想反驳哪一点？</label><textarea id="challenge-input" rows="2" maxlength="100" placeholder="比如：我其实更在乎自己支配时间，而不是收入"></textarea><div class="challenge-suggestions"><button type="button" data-challenge="我在乎的不是收入，而是有权决定自己的时间。">我在乎时间</button><button type="button" data-challenge="我并不觉得稳定就无聊，它也能让我更勇敢。">稳定也有勇气</button></div><p id="challenge-error" class="form-error hidden" role="alert"></p><button id="revise" class="cta" type="button"><span id="revise-label">让 AI 再想一遍</span><span class="cta-arrow" aria-hidden="true">↗</span></button><button id="skip" class="text-button" type="button">跳过质疑，直接制作电子纸芯</button></div></div>
+        <p class="pill-line" id="capsule-line"></p>
+        <div class="stack-actions">
+          <button id="print-save" class="big-btn" type="button">打印 / 存下这张票 <span aria-hidden="true">↗</span></button>
+          <button id="restart" class="ghost-btn" type="button">再开一粒</button>
+        </div>
+        <p class="hint center">网页里的卷纸和胶囊是动画效果。现场机器出仓以传感器回报为准。</p>
       </section>
-
-      <section id="screen-revising" class="screen scene-screen hidden" aria-live="polite"><div class="loading-orb revision-orb" aria-hidden="true"><div class="loading-pill"></div></div><span class="eyebrow">I HEAR YOU</span><h2>收到异议。<br>这次换你来定义重点。</h2><p>保留原判断，等待模型只修订结论。</p><span id="revision-elapsed" class="elapsed">已等待 0 秒</span><button id="revision-back" class="text-button" type="button">保留初稿，返回对照</button></section>
-      <section id="screen-revised" class="screen hidden"><div class="result-intro"><div><span class="eyebrow">03 / REWRITE THE READING</span><h2>你让故事改了口。</h2><p>不是换一张命运牌，而是认真回应你的异议。</p></div><span id="revision-source" class="source-tag">真实 AI 改判</span></div><div class="revision-grid"><div class="revision-before"><span>原来的判断</span><p id="old-reading"></p></div><div class="revision-after"><span>回应你的异议之后</span><p id="new-reading"></p></div></div><div class="reason-card"><span>变化发生在这里 ↗</span><p id="reason"></p></div><button id="to-capsule" class="cta narrow-cta" type="button">把新理解装进纸芯 <span class="cta-arrow" aria-hidden="true">↗</span></button></section>
-
-      <section id="screen-capsule" class="screen hidden capsule-screen"><div class="capsule-head"><span class="eyebrow">04 / TAKE THIS WITH YOU</span><h2>带走一粒<br><em>尚未写完的答案。</em></h2><p>另一条路有代价，现在这条路的故事仍由你自己写。</p></div><div class="capsule-layout"><div class="capsule-display" aria-hidden="true"><span class="capsule-shadow"></span><div class="big-capsule"><div class="capsule-half"></div><div class="capsule-seam"></div><div class="capsule-paper"></div></div><span class="spark spark-a">✦</span><span class="spark spark-b">✳</span></div><article id="paper-core" class="paper-core"><div class="paper-top">ROAD NOT TAKEN <span>NO. 001</span></div><div class="paper-logo">没走的路 <span>✳</span></div><p id="paper-line" class="paper-line"></p><div class="paper-rule"></div><div class="paper-paths"><span id="paper-present-label">现在：由你定义</span><span>另一条路：虚构</span></div><div class="paper-bottom">虚构叙事 · 电子纸芯 · 不可吞食</div></article></div><div class="capsule-actions"><button id="print-paper" class="cta" type="button">打印 / 保存电子纸芯 <span class="cta-arrow" aria-hidden="true">↗</span></button><button id="restart" class="secondary-btn" type="button">再开一粒</button></div><p class="capsule-disclaimer">网页动画不代表自动卷纸、封装或真实胶囊出仓；是否连接实体设备请以现场说明为准。</p></section>
     </main>
-    <footer><span>© 2026 ROAD NOT TAKEN · 一场关于选择的温柔恶作剧</span><a href="/">旧版硬件流程 ↗</a></footer>
+
+    <footer class="foot">虚构想象，不是人生预测 · 胶囊为展示道具，别真吃</footer>
+
+    <div class="actionbar" id="actionbar" hidden>
+      <p class="action-hint" id="action-hint">选一个动作，做在手机上。</p>
+      <div class="action-pick" id="action-pick" role="group" aria-label="选一个动作">
+        <button class="action-chip" type="button" data-action="flip" aria-pressed="false"><b>翻个面</b><span>看看背面的小字</span></button>
+        <button class="action-chip" type="button" data-action="shake" aria-pressed="false"><b>摇一摇</b><span>把账单摇出来</span></button>
+        <button class="action-chip" type="button" data-action="press" aria-pressed="false"><b>按住不放</b><span>听那个我吐槽</span></button>
+      </div>
+      <button id="main-action" class="big-btn" type="button">翻个面</button>
+      <button id="manual" class="text-btn" type="button" hidden>手机没反应？点这里确认</button>
+    </div>
   </div>
 
-  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-    <div class="modal-card"><div class="modal-top"><span class="eyebrow">DEMO SETTINGS</span><button id="settings-close" class="close-btn" type="button" aria-label="关闭设置">×</button></div><h2 id="settings-title">连接你的 AI</h2><p>有模型 Key 才能为自定义输入实时生成、并进行真实的第二轮改判。预置案例仅为交互体验。</p>
-      <label for="api-base">本地服务地址</label><input id="api-base" type="url" spellcheck="false" placeholder="http://localhost:8787" /><p>请从该服务的 <code>/demo.html</code> 打开页面；为保护本地请求，本 Demo 会拒绝跨源调用。</p>
-      <label for="api-key">StepFun API Key（可选：服务端已配置时留空）</label><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." />
-      <label for="model">模型</label><select id="model"><option value="step-5-preview">step-5-preview · 质量优先</option><option value="step-3.7-flash">step-3.7-flash · 速度优先</option><option value="step-3.5-flash">step-3.5-flash · 速度优先</option></select>
-      <p class="modal-warning">Key 只存于这台浏览器的 localStorage，但会随生成请求发送给你配置的服务端。仅在可信本地服务使用，勿在公共终端输入。输入内容会传至服务端及模型供应商。</p><button id="settings-save" class="cta" type="button">保存并检查连接 <span class="cta-arrow" aria-hidden="true">↗</span></button>
+  <div id="mode-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="mode-title" hidden>
+    <div class="modal-card">
+      <div class="modal-top"><span class="eyebrow">这一局怎么跑</span><button id="mode-close" class="close-btn" type="button" aria-label="关闭">×</button></div>
+      <h2 id="mode-title">机器和你各自干什么</h2>
+      <p id="mode-description"></p>
+      <p class="advice" id="mode-advice"></p>
+      <button id="mode-settings" class="ghost-btn" type="button">去接上实时 AI ↗</button>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+    <div class="modal-card">
+      <div class="modal-top"><span class="eyebrow">设置</span><button id="settings-close" class="close-btn" type="button" aria-label="关闭">×</button></div>
+      <h2 id="settings-title">把 AI 接上</h2>
+      <p>接上模型，你写的路才会实时生成；现成案例一直是人工写好的。</p>
+      <label for="api-base">本地服务地址</label>
+      <input id="api-base" type="url" spellcheck="false" placeholder="http://localhost:8787" />
+      <p class="hint">从该服务的 <code>/demo.html</code> 打开页面；跨源调用会被拒绝。</p>
+      <label for="api-key">StepFun API Key（服务端已配置就留空）</label>
+      <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." />
+      <label for="model">模型</label>
+      <select id="model">
+        <option value="step-5-preview">step-5-preview · 质量优先</option>
+        <option value="step-3.7-flash">step-3.7-flash · 速度优先</option>
+        <option value="step-3.5-flash">step-3.5-flash · 速度优先</option>
+      </select>
+      <p class="warn">Key 只存在这台浏览器里，但会随请求发给你配置的服务端。别在公共电脑上填。你写的内容会传给服务端和模型供应商。</p>
+      <button id="settings-save" class="big-btn" type="button">保存并检查连接</button>
     </div>
   </div>
 </body>

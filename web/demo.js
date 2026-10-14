@@ -1,84 +1,195 @@
-/* 预赛独立 Demo。预置案例与真实模型响应始终显示来源，不伪装硬件。 */
+/* 没走的路 · 后悔药贩卖机（移动端 Demo）。
+   规则：写一句 → 对着机器做一个动作 → 拿票卷进胶囊。
+   页面从不假装硬件做完了：没连机器就说没连，动画是动画。 */
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const safeGet = (key) => { try { return localStorage.getItem(key) || ''; } catch { return ''; } };
-  const safeSet = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
-  const isCrisis = (s) => /自杀|自尽|自残|自伤|轻生|不想活|活不下去|想死|死了算了|割腕|跳楼|安眠药|解脱了|kill myself|suicide|self[-\s]?harm/i.test(s);
-  const presets = {
+  const safeGet = (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } };
+  const safeSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const isCrisis = (s) => /自杀|自尽|自残|自伤|自虐|轻生|不想活|活不下去|想死|死了算了|割腕|跳楼|安眠药|解脱了|一了百了|结束生命|了结自己|伤害自己|撑不下去了|kill myself|suicide|self[-\s]?harm/i.test(s);
+
+  /* 等待时的机器台词：毒舌人设，但只损那条路，不损坐着的人 */
+  const WAIT_LINES = [
+    '机器正在读你那条路的广告词。',
+    '正在找这条路上没人提前告诉你的那几笔账。',
+    '正在问那边的你，最近过得怎么样。',
+    '别催。那边的你也在加班。',
+    '正在把"如果能重来"折成一张小票。',
+    '正在确认：那条路也没给你开后门。',
+    '正在给那条路拍一张不打光的照片。',
+  ];
+
+  /* 三个动作：动作名就是动作本身，说明只有一行大白话 */
+  const ACTIONS = {
+    flip: { name: '翻个面', line: '看看这条路背面写了什么小字', key: '背面的小字', challenge: '翻个面：把这条路没写进广告的小字翻出来看看。' },
+    shake: { name: '摇一摇', line: '把没写进广告的账单摇出来', key: '摇出来的账单', challenge: '摇一摇：把这条路上没写进广告的账单摇出来。' },
+    press: { name: '按住不放', line: '听那个我吐槽两句', key: '那个我的吐槽', challenge: '按住不放：让平行世界的我自己出来吐槽两句。' },
+  };
+
+  /* 现成案例：没网、没 Key 时也能走完整流程（页面会标注“没调用 AI”） */
+  const PRESETS = {
     dali: {
-      input: '如果当时我辞职去大理开咖啡店',
-      title: '同一个人，两种晨光',
-      assumption: '这是人工预置的虚构角色；“继续上班”是示例设定，与体验者的真实生活无关。',
-      present: { label: '预置角色 · 假设继续上班', gain: '周五准时收到工资，窗边那盆绿萝在你请假时有人浇水。', cost: '闹钟响起的早晨，偶尔还是会觉得自己活在别人的日程表里。', envy: '羡慕那边的人，有一扇可以自己决定几点打开的店门。' },
-      alternate: { label: '预置角色 · 假设开了小店', gain: '你把第一杯咖啡端给沿路看海的陌生人，晨光照亮了菜单。', cost: '旺季站十二小时，淡季要算房租；即使窗外云很好看，账本也不会自己变轻。', envy: '羡慕另一边的人，偶尔真的可以在周五六点关掉电脑。' },
-      synthesis: '这个角色想要的也许不是那间店，而是有权决定今天何时开门。',
-      presetChallenge: '我在乎的不是收入，而是有权决定自己的时间。',
-      revision: { newReading: '稳定的收入和自由的时间，都值得被认真争取；它们不是只能二选一的奖品。', reason: '这个预置场景的异议是“更在乎时间的自主权”。于是结论从具体职业转向可以实践的生活边界。', capsuleLine: '另一条路不负责拯救你；今天也能从一小时属于自己的时间开始。' },
+      label: '辞职去大理开咖啡店',
+      story: {
+        title: '海边小店：本店全年无休',
+        assumption: '这是提前写好的虚构角色，和你的真实生活没关系。',
+        alternate: {
+          label: '没走的那条路（虚构）',
+          gain: '洱海边一扇白墙木窗。第一杯手冲端出去，海是蓝的，客人说"这就是生活"，你连拍十七张，够发一整年。',
+          cost: '旺季三桌客人同时预约最佳落日位；淡季房东、豆商和平台抽成开了个会，一致通过：旺季延长、淡季涨价、抽成照旧。',
+          envy: '店里的我说：这店是我的，也是房东的、平台的、豆商的，排到最后才轮到我。',
+        },
+        synthesis: '海风不打卡，账单打。',
+      },
+      revisions: {
+        flip: { newReading: '路牌背面一行小字：本店全年无休，日出归你管，涨价随缘，雨天不退。', capsuleLine: '那边的日出很准时，账单也是。' },
+        shake: { newReading: '摇出四笔账：房租、豆价、平台抽成、一次性纸杯的环保附加费。它们按时开会，你按时上班。', capsuleLine: '在那条路上，账单会组团点单。' },
+        press: { newReading: '另一个我说：别问了，我正忙着给咖啡机排年假，排在它自己后面。', capsuleLine: '那家店的咖啡机也想下班。' },
+      },
     },
     art: {
-      input: '如果当时我学美术而不是计算机',
-      title: '画笔与光标的两边',
-      assumption: '这是人工预置的虚构角色；“继续写代码”是示例设定，不代表你现实中学了什么。',
-      present: { label: '预置角色 · 假设继续写代码', gain: '你把一个麻烦流程变成了别人手机上顺手的一次点击。', cost: '第十七次改动需求时，屏幕的光比天亮得还早。', envy: '羡慕另一边的人，有时能把感受直接落在纸上。' },
-      alternate: { label: '预置角色 · 假设学了美术', gain: '画室的夜里，你终于找到一种不需要解释的表达。', cost: '为了买颜料而代课，为了截稿而熬夜；甲方说“再鲜艳一点”。', envy: '羡慕另一边的人，按下运行键就能看见东西动起来。' },
-      synthesis: '热爱与谋生从来不是互斥的标签，只是它们都需要你的时间。',
-      presetChallenge: '我不觉得必须换职业才能保留对美术的热爱。',
-      revision: { newReading: '不必把身份画成单选题。你可以写代码，也可以继续给自己留一张白纸。', reason: '这个预置场景的异议是“不必换职业才配热爱”。修订后，两种实践可以同时存在。', capsuleLine: '这一次，不换路；在这条路的口袋里放一支笔。' },
+      label: '学美术而不是计算机',
+      story: {
+        title: '画室很自由，甲方更自由',
+        assumption: '这是提前写好的虚构角色，不代表你现实里学了什么。',
+        alternate: {
+          label: '没走的那条路（虚构）',
+          gain: '画室熄灯前，松节油盖过泡面味。老师站你背后看了三秒，说"你有天赋"——这三个字你存了两年。',
+          cost: '颜料刚拆封，截稿日提前四天。甲方说"再鲜艳一点"，你把同一套配色交到第八版；第九版他问你，能不能回到第七版。',
+          envy: '画室里的我说：别问我后不后悔，我正忙着给第八版盖一层更鲜艳的灰。',
+        },
+        synthesis: '画室很自由，甲方更自由。',
+      },
+      revisions: {
+        flip: { newReading: '灯管背面贴着：本教室允许通宵，电费按灵感结算，灵感按分钟超时。', capsuleLine: '那边的加班费，按月结算不了。' },
+        shake: { newReading: '颜料、画布、快递费一起涨。房东顺手把房租调成了"高饱和"，说这是行业惯例。', capsuleLine: '那边的配色很高饱和，账单也是。' },
+        press: { newReading: '另一个我说：别问了，我在给插座写作品说明，甲方说明天要。', capsuleLine: '那边的橡皮擦得掉铅笔，擦不掉甲方消息。' },
+      },
+    },
+    beijing: {
+      label: '毕业后留在北京',
+      story: {
+        title: '留在北京：窗户朝西，时间朝甲方',
+        assumption: '这是提前写好的虚构角色，和你的真实生活没关系。',
+        alternate: {
+          label: '没走的那条路（虚构）',
+          gain: '你在三环里租到一间朝北的屋子。睡前刷到的全是行业峰会、"北京凌晨四点"和别人的入职照。',
+          cost: '地铁、日程表和外卖提醒轮流当闹钟。你刚挤上早班车，工牌就提醒你下班后还有一场对齐会。',
+          envy: '工位上的我说：我住的地方朝北，我的窗户朝西，我的时间朝甲方。',
+        },
+        synthesis: '日出看到了，工位也到了。',
+      },
+      revisions: {
+        flip: { newReading: '租房合同第七页小字：隔断不隔音，押一付三，提前退租请把墙刷回原来的白。', capsuleLine: '那边的房间朝北，押金朝南。' },
+        shake: { newReading: '摇出四笔：房租、通勤、外卖，还有体检报告上那行"建议复查"。它们四季常青。', capsuleLine: '那边的账单有工牌，也是打卡制。' },
+        press: { newReading: '另一个我说：别问了，我在给工牌充电，它比我更需要续航。', capsuleLine: '那边的工牌活得很健康。' },
+      },
+    },
+    stay: {
+      label: '如果当时没有和他分手',
+      story: {
+        title: '没分手：先装茶几',
+        assumption: '这是提前写好的虚构角色，和你的真实感情生活没关系。',
+        alternate: {
+          label: '没走的那条路（虚构）',
+          gain: '你们养了只猫，周末去宜家买了张谁看都说"挺温馨"的茶几，朋友圈里你们是模范情侣。',
+          cost: '茶几说明书少画了一颗螺丝，猫负责把剩下的螺丝藏起来。三年后你们找到那颗螺丝，吵了一架，关于是谁弄丢的。',
+          envy: '客厅里的我说：感情没散，茶几差点。我们现在最熟练的技能，是沉默着拼家具。',
+        },
+        synthesis: '感情没散，茶几差点。',
+      },
+      revisions: {
+        flip: { newReading: '说明书最后一页：建议两人安装，不建议两人边装边讨论谁做得多。', capsuleLine: '那边的说明书，没写这一条。' },
+        shake: { newReading: '摇出三笔：猫粮、扫地机器人，还有每次吵完点的那份双人火锅外卖。', capsuleLine: '那边的和解成本，按顿结算。' },
+        press: { newReading: '另一个我说：别问了，我在找那颗螺丝，已经找到第三年了。', capsuleLine: '那边的猫，至今没有归还赃物。' },
+      },
     },
   };
+
+  /* 票面插画：本地矢量线稿，按文案关键词挑一张。
+     不是实时 AI 出图——这句话也写在 DEMO_UI_ART_BRIEF 里，别对外说成生成图。 */
+  const S = (inner) => `<svg viewBox="0 0 120 62" preserveAspectRatio="xMidYMid meet" fill="none" stroke="#14131A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  const SCENES = {
+    window: S(`<rect x="12" y="6" width="52" height="38" rx="3"/><path d="M38 6v38M12 25h52"/><circle cx="88" cy="16" r="8"/><path d="M80 30h26M80 36h20"/><path d="M8 50h104"/><path d="M20 50v-7a7 7 0 0 1 14 0v7"/><path d="M34 44h4a3.5 3.5 0 0 1 0 7"/><path d="M58 50c0-9 4-13 9-13"/>`),
+    desk: S(`<path d="M6 48h108"/><path d="M34 48l-5-24h40l5 24"/><rect x="32" y="16" width="34" height="19" rx="2"/><path d="M39 23h12M39 29h19"/><path d="M78 48V36h11v12"/><circle cx="98" cy="12" r="7"/><path d="M98 19v16"/>`),
+    queue: S(`<path d="M6 52h108"/><circle cx="26" cy="18" r="6"/><path d="M26 24v13M26 37l-6 9M26 37l6 9"/><circle cx="58" cy="18" r="6"/><path d="M58 24v13M58 37l-6 9M58 37l6 9"/><circle cx="90" cy="18" r="6"/><path d="M90 24v13M90 37l-6 9M90 37l6 9"/><path d="M8 8h14v10l-3.5-2-3.5 2-3.5-2L8 18z"/><path d="M8 12h14"/>`),
+    machine: S(`<rect x="30" y="10" width="46" height="38" rx="5"/><rect x="39" y="19" width="18" height="10" rx="2"/><path d="M43 38v6"/><path d="M28 48h50"/><path d="M84 26h10l-2 12H86z"/><path d="M92 30h4a3 3 0 0 1 0 6"/><path d="M14 6h92"/>`),
+    mirror: S(`<rect x="8" y="6" width="38" height="46" rx="19"/><circle cx="27" cy="22" r="6"/><path d="M27 28v11M27 39l-6 9M27 39l6 9"/><path d="M58 12h48a5 5 0 0 1 5 5v14a5 5 0 0 1-5 5H78l-9 9v-9h-11a5 5 0 0 1-5-5V17a5 5 0 0 1 5-5z"/><path d="M70 20h24M70 27h16"/>`),
+  };
+  const MOTIFS = [
+    [/窗|海|晨光|阳光|海风|阳台|院子|旅行|风景|落地窗|大理/, 'window'],
+    [/咖啡|吧台|客人|店|收银|机器|设备|出杯/, 'machine'],
+    [/改稿|甲方|加班|代码|屏幕|方案|审批|会议|KPI|报表|电脑|工位|老板|稿/, 'desk'],
+    [/排队|账单|房租|豆价|涨|抽成|快递|地铁|通勤|证件|签证|手续|报到|挂号|平台/, 'queue'],
+  ];
+  function sceneFor(text, fallback) {
+    for (const [re, name] of MOTIFS) if (re.test(text)) return SCENES[name];
+    return SCENES[fallback];
+  }
+
   const app = {
     apiBase: safeGet('rnt.apiBase') || location.origin,
-    apiKey: safeGet('rnt.apiKey'),
+    apiKey: safeGet('rnt.apiKey') || '',
     model: safeGet('rnt.model') || 'step-5-preview',
-    connected: false, ready: false, mock: false,
-    lens: '', presentContext: '', hasPresentContext: false, source: null, input: '', story: null, revision: null, ms: null, revisionMs: null,
-    sequence: 0, timer: null, lastFocus: null,
+    connected: false, ready: false, mock: false, deviceOnline: false,
+    presentContext: '', source: null, input: '', story: null, ms: null,
+    action: 'flip', actionDone: false, extra: null, capsuleLine: '', timer: null, spin: null, seq: 0,
   };
-  const screens = ['input', 'loading', 'compare', 'revising', 'revised', 'capsule'];
-  const stage = { input: 1, loading: 1, compare: 2, revising: 3, revised: 3, capsule: 4 };
-  const stageNames = ['写下岔路', '双路对照', '给 AI 异议', '带走纸芯'];
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const screens = ['start', 'wait', 'ticket', 'print', 'capsule'];
+  const step = { start: 1, wait: 1, ticket: 2, print: 2, capsule: 3 };
 
   function show(name) {
     screens.forEach((n) => $(`screen-${n}`).classList.toggle('hidden', n !== name));
-    const current = stage[name];
-    $('stage-label').textContent = `${String(current).padStart(2, '0')} / ${stageNames[current - 1]}`;
-    $('stage-progress').style.width = `${current * 25}%`;
+    document.body.dataset.screen = name;
+    document.querySelectorAll('.dot').forEach((d) => d.classList.toggle('on', Number(d.dataset.step) <= step[name]));
     window.scrollTo({ top: 0, behavior: reduced.matches ? 'instant' : 'smooth' });
-    document.title = `${stageNames[current - 1]} · 没走的路`;
+    $('actionbar').hidden = name !== 'ticket';
   }
-  function error(id, text) { $(id).textContent = text; $(id).classList.remove('hidden'); }
-  function clearError(id) { $(id).textContent = ''; $(id).classList.add('hidden'); }
+  const err = (text) => { $('form-error').textContent = text; $('form-error').hidden = !text; };
   function clock(id) {
-    const start = Date.now();
+    const t0 = Date.now();
     clearInterval(app.timer);
-    $(id).textContent = '已等待 0 秒';
-    app.timer = setInterval(() => { $(id).textContent = `已等待 ${Math.floor((Date.now() - start) / 1000)} 秒`; }, 1000);
+    clearInterval(app.spin);
+    $(id).textContent = '已等 0 秒';
+    app.timer = setInterval(() => { $(id).textContent = `已等 ${Math.floor((Date.now() - t0) / 1000)} 秒`; }, 1000);
+    let i = Math.floor(Math.random() * WAIT_LINES.length);
+    $('wait-lede').textContent = WAIT_LINES[i];
+    app.spin = setInterval(() => {
+      i = (i + 1) % WAIT_LINES.length;
+      const el = $('wait-lede');
+      el.style.opacity = '0';
+      setTimeout(() => { el.textContent = WAIT_LINES[i]; el.style.opacity = '1'; }, 220);
+    }, 2400);
   }
-  function stopClock() { clearInterval(app.timer); app.timer = null; }
+  const stopClock = () => { clearInterval(app.timer); clearInterval(app.spin); app.timer = null; app.spin = null; };
+
   function apiUrl(path) { return `${app.apiBase.replace(/\/+$/, '')}/api/${path}`; }
   async function request(path, body, timeout = 100000) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeout);
     try {
-      const response = await fetch(apiUrl(path), {
-        method: body ? 'POST' : 'GET', headers: {
+      const res = await fetch(apiUrl(path), {
+        method: body ? 'POST' : 'GET',
+        headers: {
           ...(body ? { 'Content-Type': 'application/json' } : {}),
           ...(app.apiKey ? { 'X-Stepfun-Api-Key': app.apiKey } : {}),
           ...(app.model ? { 'X-Stepfun-Model': app.model } : {}),
-        }, body: body ? JSON.stringify(body) : undefined, signal: controller.signal,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: ctrl.signal,
       });
-      if (!(response.headers.get('content-type') || '').includes('json')) throw new Error('本地服务未返回 JSON；请检查服务地址。');
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `服务错误 ${response.status}`);
+      if (!(res.headers.get('content-type') || '').includes('json')) throw new Error('本地服务没返回 JSON，检查一下服务地址。');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `服务报错 ${res.status}`);
       return data;
-    } catch (err) {
-      if (err.name === 'AbortError') throw new Error('等待模型超时。可以重试，或选预置案例体验。');
-      if (err instanceof TypeError) throw new Error('无法连接本地服务。请检查服务是否启动，或选预置案例体验。');
-      throw err;
-    } finally { clearTimeout(timer); }
+    } catch (e) {
+      if (e.name === 'AbortError') throw new Error('模型这次卡住了，重试一下，或者先玩现成案例。');
+      if (e instanceof TypeError) throw new Error('没连上本地服务。看看服务开没开，也可以先玩现成案例。');
+      throw e;
+    } finally { clearTimeout(t); }
   }
+
   async function probe() {
     try {
       const health = await request('health', null, 4500);
@@ -88,193 +199,296 @@
     } catch { app.connected = false; app.ready = false; }
     const el = $('status');
     el.className = `status-pill ${app.ready ? 'online' : 'offline'}`;
-    el.textContent = app.ready ? '● 实时 AI 已连接' : app.mock ? '○ 预置演示模式' : app.connected ? '○ 需要模型 Key' : '○ 服务未连接';
-  }
-  function setFocus(lens) {
-    app.lens = app.lens === lens ? '' : lens;
-    $('lens-custom').value = '';
-    document.querySelectorAll('[data-focus]').forEach((btn) => {
-      const selected = btn.dataset.focus === app.lens;
-      btn.classList.toggle('selected', selected);
-      btn.setAttribute('aria-pressed', String(selected));
-    });
-  }
-  function clearLens() {
-    app.lens = '';
-    document.querySelectorAll('[data-focus]').forEach((btn) => {
-      btn.classList.remove('selected'); btn.setAttribute('aria-pressed', 'false');
-    });
-  }
-  function setInput(text) { $('choice-input').value = text; $('count').textContent = `${text.length} / 100`; }
-  function validateInput(text) {
-    if (isCrisis(text)) return '这段话值得被认真对待，而不是做成游戏。请联系信任的人；如果有即刻危险，请联系当地急救服务。';
-    if (text.length < 10 || text.length > 100) return '请用 10–100 字写下一个具体的“如果当时……”。';
-    return '';
-  }
-  function fill(prefix, path) {
-    $(`${prefix}-label`).textContent = path.label;
-    $(`${prefix}-gain`).textContent = path.gain;
-    $(`${prefix}-cost`).textContent = path.cost;
-    $(`${prefix}-envy`).textContent = path.envy;
-  }
-  function renderCompare() {
-    const story = app.story;
-    $('story-title').textContent = story.title;
-    $('assumption-text').textContent = story.assumption;
-    $('synthesis').textContent = story.synthesis;
-    fill('now', story.present); fill('other', story.alternate);
-    const live = app.source === 'ai';
-    const unknown = live && !app.hasPresentContext;
-    $('result-copy').textContent = unknown ? '这里只想象没走的路；现实中的你保持未知。' : live ? '两边都是基于你提供的线索所写的虚构情境，不是人生预测。' : '这是预置虚构角色的两条路，不是你的真实经历。';
-    $('revise-label').textContent = live ? '让 AI 再想一遍' : '看预置的改判示例';
-    $('now-meta').textContent = unknown ? '01 / CURRENT LIFE: UNKNOWN' : live ? '01 / FICTION BASED ON YOUR CLUE' : '01 / PRESET FICTION';
-    $('now-gain-label').textContent = unknown ? '现实的所得' : '可能的所得';
-    $('now-cost-label').textContent = unknown ? '现实的代价' : '可能的代价';
-    $('now-envy-label').textContent = unknown ? '你真正的感受' : '可能的回望';
-    $('source-tag').textContent = live ? (unknown ? '● 实时 AI · 未走之路' : '● 实时 AI · 双路情境') : '● 预置虚构案例';
-    $('source-tag').classList.toggle('live', live);
-    $('tech-text').textContent = live
-      ? `${app.lens ? `你自选了“${app.lens}”关注角度。` : '没有指定关注角度。'}${unknown ? '你未提供现状：模型只生成没走的路，现实卡片是服务端固定留白文案。' : '你自愿补充了一句现状线索；现实卡片为基于线索的虚构推演，不是事实。'}模型 ${app.model} 用时 ${(app.ms / 1000).toFixed(1)} 秒。若提出异议，会再发送原故事与异议给模型；未使用 AI 出图。`
-      : '这是人工预先编写、审核过的虚构角色案例，没有调用模型；你在输入页填写的现状和关注点均不会改变它，也不会被发送。插画为预置 CSS/SVG 图形。';
-    $('assumption-panel').classList.add('hidden'); $('assumption-toggle').setAttribute('aria-expanded', 'false');
-    $('tech-panel').classList.add('hidden'); $('tech-toggle').setAttribute('aria-expanded', 'false');
-    $('path-grid').classList.remove('swapped');
-    const preset = !live;
-    $('challenge-input').value = '';
-    $('challenge-input').readOnly = preset;
-    $('challenge-input').placeholder = preset ? '请点击下方的预置异议' : '比如：我其实更在乎自己支配时间，而不是收入';
-    $('challenge-explainer').textContent = preset
-      ? '此案例为静态演示，只能选择固定异议；想让 AI 真正回应你的观点，请连接模型。'
-      : '第二次模型调用只改判读，不重写你没说过的经历。';
-    const choices = document.querySelectorAll('[data-challenge]');
-    choices[0].dataset.challenge = preset ? story.presetChallenge : '我在乎的不是收入，而是有权决定自己的时间。';
-    choices[0].textContent = preset ? `预置异议：${story.presetChallenge}` : '我在乎时间';
-    choices[1].classList.toggle('hidden', preset);
-    show('compare');
-  }
-  async function generate() {
-    const text = $('choice-input').value.trim();
-    clearError('form-error');
-    const issue = validateInput(text);
-    if (issue) return error('form-error', issue);
-    if (!app.ready) return error('form-error', '自定义输入需要真实 AI 连接。请在右上角设置可信的本地服务和模型 Key，或点击下方预置案例。');
-    const presentContext = $('present-details').open ? $('present-input').value.trim() : '';
-    const lens = $('lens-custom').value.trim() || app.lens;
-    if (presentContext && (presentContext.length < 4 || isCrisis(presentContext))) return error('form-error', '现实线索请写 4–80 字；若涉及危机，先暂停游戏并联系可信的人或当地专业援助。');
-    if (lens && (lens.length < 2 || isCrisis(lens))) return error('form-error', '关注点请写 2–30 字，避免输入敏感经历。');
-    const ticket = ++app.sequence;
-    app.input = text; app.lens = lens; app.presentContext = presentContext; app.hasPresentContext = Boolean(presentContext); app.source = 'ai'; app.revision = null;
-    show('loading'); clock('elapsed');
+    el.textContent = app.ready ? 'AI 在线' : app.mock ? '现成案例' : app.connected ? '缺 Key' : '服务没连';
     try {
-      const data = await request('parallel/create', { text, presentContext, lens });
-      if (ticket !== app.sequence) return;
-      app.story = data.story; app.ms = data.durationMs; app.hasPresentContext = data.hasPresentContext === true;
-      stopClock(); renderCompare();
-    } catch (err) {
-      if (ticket !== app.sequence) return;
-      stopClock(); show('input'); error('form-error', err.message);
+      const d = await request('device/status', null, 4000);
+      app.deviceOnline = !!d.connected;
+    } catch { app.deviceOnline = false; }
+    const badge = $('device-badge');
+    badge.hidden = !app.deviceOnline;
+    if (app.deviceOnline) badge.textContent = '机器在线';
+  }
+
+  /* ---------------- 生成 ---------------- */
+  async function start(presetId) {
+    const preset = presetId ? PRESETS[presetId] : null;
+    const text = preset ? preset.label : $('choice-input').value.trim();
+    if (!preset) {
+      const bad = isCrisis(text)
+        ? '这段先别拿来玩。请联系你信任的人；如果有马上伤害自己的风险，直接联系当地急救服务。'
+        : text.length < 10 || text.length > 100 ? '写具体一点，10～100 字就行。别只扔一句“要是当时”。' : '';
+      if (bad) { err(bad); return; }
+    }
+    err('');
+    app.input = text; app.source = preset ? 'preset' : 'ai'; app.actionDone = false; app.extra = null;
+    show('wait'); clock('elapsed');
+    if (preset) {
+      await new Promise((r) => setTimeout(r, reduced.matches ? 120 : 900));
+      stopClock(); app.story = preset.story; app.ms = null; renderTicket(); return;
+    }
+    try {
+      const data = await request('parallel/create', { text, presentContext: $('present-input').value.trim(), lens: '' });
+      app.story = data.story; app.ms = data.durationMs;
+      stopClock(); renderTicket();
+    } catch (e) {
+      stopClock();
+      $('elapsed').textContent = '这台机器今天不配合';
+      $('screen-wait').querySelector('h2').textContent = '糖衣没灌成。';
+      $('screen-wait').querySelector('.lede').textContent = e.message;
     }
   }
-  function usePreset(id) {
-    const item = presets[id]; if (!item) return;
-    ++app.sequence; stopClock(); clearError('form-error');
-    setInput(item.input); $('present-input').value = ''; $('present-details').open = false; $('lens-custom').value = ''; clearLens();
-    app.input = item.input; app.presentContext = ''; app.hasPresentContext = false; app.story = item; app.source = 'preset'; app.ms = null; app.revision = null;
-    renderCompare();
+
+  function renderTicket() {
+    const s = app.story;
+    $('ticket-no').textContent = $('ticket-no-2').textContent = `NO.${String(++app.seq).padStart(4, '0')}`;
+    const art1 = sceneFor(s.alternate.gain, 'window');
+    $('ticket-title').textContent = s.title;
+    $('ticket-sugar').textContent = app.input;
+    $('ticket-assumption').textContent = s.assumption || '这条路上的一切都是虚构的。';
+    $('cap-1').textContent = $('cap-1b').textContent = s.alternate.gain;
+    $('cap-2').textContent = s.alternate.cost;
+    $('cap-3').textContent = s.alternate.envy;
+    $('art-1').innerHTML = art1;
+    $('art-1b').innerHTML = art1;
+    $('art-2').innerHTML = sceneFor(s.alternate.cost, 'queue');
+    $('art-3').innerHTML = SCENES.mirror;
+    $('ticket-foot').textContent = s.synthesis;
+    $('extra-wrap').classList.add('hidden');
+    $('ticket-extra').textContent = '';
+    $('flipper').classList.remove('flipped');
+    document.body.classList.remove('did-act');
+    document.querySelector('.ticket-stage').classList.remove('tall');
+    $('capsule-line').textContent = '';
+    $('ticket-note').textContent = app.source === 'ai'
+      ? `模型刚写完，${((app.ms || 0) / 1000).toFixed(1)} 秒。这条路上的一切都是虚构的。`
+      : '现成案例：这局没调用 AI，你刚才写的内容也没发出去。';
+    setAction(app.action); setBarPhase('pick');
+    show('ticket');
+    syncCues();
   }
+
+  /* ---------------- 动作 ---------------- */
+  function setAction(kind) {
+    app.action = kind;
+    document.querySelectorAll('[data-action]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.action === kind)));
+    const a = ACTIONS[kind];
+    $('main-action').textContent = a.name;
+    $('action-hint').textContent = `${a.line}。做完票就翻到背面。`;
+    $('manual').hidden = true;
+  }
+  function setBarPhase(phase) {
+    const picking = phase === 'pick';
+    $('action-pick').hidden = !picking;
+    $('action-hint').hidden = !picking;
+    if (!picking) $('main-action').textContent = '卷进胶囊 →';
+  }
+  const needsPermission = () => typeof DeviceOrientationEvent !== 'undefined'
+    && typeof DeviceOrientationEvent.requestPermission === 'function';
+
+  const sensor = { armed: null, base: null, hits: 0, last: 0, got: false, timer: null, granted: false };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function onOrient(e) {
+    if (e.gamma !== null && e.beta !== null) { $('holo').style.setProperty('--px', `${clamp(50 + e.gamma * 1.1, 0, 100)}%`); $('holo').style.setProperty('--py', `${clamp(50 + (e.beta - 45) * 0.9, 0, 100)}%`); }
+    if (!sensor.armed || sensor.armed.kind !== 'flip') return;
+    const { beta, gamma } = e;
+    if (beta === null || gamma === null) return;
+    sensor.got = true;
+    if (!sensor.base) { sensor.base = { beta, gamma }; return; }
+    const d = Math.max(Math.abs(beta - sensor.base.beta), Math.abs(gamma - sensor.base.gamma));
+    if (d > 110) completeAction('sensor');
+  }
+  function onMotion(e) {
+    const a = e.accelerationIncludingGravity;
+    if (!a || a.x === null) return;
+    if (!sensor.armed || sensor.armed.kind !== 'shake') return;
+    sensor.got = true;
+    const mag = Math.sqrt(a.x ** 2 + a.y ** 2 + a.z ** 2) / 9.81;
+    const now = Date.now();
+    if (mag > 2.1 && now - sensor.last > 260) { sensor.last = now; sensor.hits++; if (sensor.hits >= 3) completeAction('sensor'); }
+  }
+  if (typeof DeviceOrientationEvent !== 'undefined') window.addEventListener('deviceorientation', onOrient);
+  if (typeof DeviceMotionEvent !== 'undefined') window.addEventListener('devicemotion', onMotion);
+
+  async function askPermission() {
+    try {
+      if (needsPermission()) await DeviceOrientationEvent.requestPermission();
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') await DeviceMotionEvent.requestPermission();
+    } catch { /* 拒绝了也能玩：下面有手动确认兜底 */ }
+    sensor.granted = true;
+  }
+
+  function arm(kind) {
+    clearTimeout(sensor.timer);
+    sensor.armed = { kind }; sensor.base = null; sensor.hits = 0; sensor.last = 0; sensor.got = false;
+    $('manual').hidden = true;
+    $('main-action').textContent = kind === 'flip' ? '把手机翻过去' : kind === 'shake' ? '摇三下' : '按住不放';
+    $('action-hint').textContent = kind === 'flip' ? '把手机翻个面，屏幕朝下再翻回来。' : '摇三下，用力点。';
+    sensor.timer = setTimeout(() => { if (!app.actionDone) $('manual').hidden = false; }, 3000);
+  }
+
+  function holdStart(ev) {
+    if (app.action !== 'press') return;
+    ev.preventDefault();
+    const btn = $('main-action');
+    const t0 = Date.now();
+    btn.classList.add('holding');
+    $('main-action').textContent = '按住……别松手';
+    const raf = () => {
+      if (!hold.on) return;
+      const p = Math.min(1, (Date.now() - t0) / 1800);
+      btn.style.background = `linear-gradient(100deg, #FF4F85 ${p * 100}%, #FF693A ${p * 100}%, #FF693A)`;
+      if (p < 1) requestAnimationFrame(raf);
+    };
+    const hold = { on: true };
+    requestAnimationFrame(raf);
+    const up = () => {
+      hold.on = false; window.removeEventListener('pointerup', up);
+      btn.classList.remove('holding');
+      btn.style.background = '';
+      if (Date.now() - t0 >= 1800) completeAction('hold');
+      else { $('main-action').textContent = '按住不放'; $('action-hint').textContent = '松早了。再来一次，按够两秒。'; }
+    };
+    window.addEventListener('pointerup', up, { once: true });
+  }
+
+  async function completeAction(via) {
+    if (app.actionDone) return;
+    app.actionDone = true;
+    sensor.armed = null; clearTimeout(sensor.timer);
+    $('manual').hidden = true;
+    if (navigator.vibrate) navigator.vibrate(via === 'manual' ? 18 : [14, 40, 14]);
+    $('main-action').textContent = '别动，机器在印背面…';
+    $('main-action').disabled = true;
+    const extra = await revise();
+    app.extra = extra;
+    $('extra-key').textContent = `你的动作 · ${ACTIONS[app.action].key}`;
+    $('ticket-extra').textContent = extra.newReading;
+    $('extra-wrap').classList.remove('hidden');
+    $('capsule-line').textContent = extra.capsuleLine || '';
+    $('ticket-note').textContent = app.source === 'ai'
+      ? '这段小字是刚刚为你的动作单独写的。'
+      : '现成案例：这一段也提前写好了，全程没调用 AI。';
+    await printRun();
+    $('flipper').classList.add('flipped');
+    document.body.classList.add('did-act');
+    syncCues();
+    document.querySelector('.ticket-stage').classList.add('tall');
+    $('main-action').disabled = false;
+    setBarPhase('done');
+  }
+
   async function revise() {
-    const challenge = $('challenge-input').value.trim(); clearError('challenge-error');
-    if (isCrisis(challenge)) return error('challenge-error', '这次先暂停游戏。请联系信任的人或当地专业援助；有即刻危险请联系当地急救服务。');
-    if (challenge.length < 5) return error('challenge-error', '请具体写下你的不同看法（至少 5 字）。');
-    if (app.source === 'preset') {
-      if (challenge !== app.story.presetChallenge) return error('challenge-error', '预置案例只包含这一条固定异议，请点击下方按钮；自定义质疑需要连接模型。');
-      app.revision = { oldReading: app.story.synthesis, ...app.story.revision };
-      app.revisionMs = null; renderRevision(); return;
+    const preset = app.source === 'preset';
+    if (preset) {
+      const found = Object.values(PRESETS).find((p) => p.label === app.input);
+      await new Promise((r) => setTimeout(r, reduced.matches ? 80 : 700));
+      return (found || PRESETS.dali).revisions[app.action];
     }
-    const ticket = ++app.sequence;
-    show('revising'); clock('revision-elapsed');
     try {
-      const data = await request('parallel/revise', { text: app.input, lens: app.lens, original: {
-        title: app.story.title, assumption: app.story.assumption, present: app.story.present,
-        alternate: app.story.alternate, synthesis: app.story.synthesis,
-      }, challenge });
-      if (ticket !== app.sequence) return;
-      app.revision = data.revision; app.revisionMs = data.durationMs;
-      stopClock(); renderRevision();
-    } catch (err) {
-      if (ticket !== app.sequence) return;
-      stopClock(); show('compare'); error('challenge-error', `${err.message} 初稿已保留，可以重试或直接制作电子纸芯。`);
+      const data = await request('parallel/revise', {
+        text: app.input, lens: '', original: app.story,
+        challenge: ACTIONS[app.action].challenge, challengeType: app.action,
+      });
+      return data.revision;
+    } catch (e) {
+      return { newReading: `机器印到一半卡住了：${e.message}。背面先留白，动作本身是真的做过了。`, capsuleLine: '' };
     }
   }
-  function renderRevision() {
-    $('old-reading').textContent = app.revision.oldReading;
-    $('new-reading').textContent = app.revision.newReading;
-    $('reason').textContent = app.revision.reason;
-    const live = app.source === 'ai';
-    $('revision-source').textContent = live ? `● 真实 AI 改判 · ${(app.revisionMs / 1000).toFixed(1)} 秒` : '● 固定异议的预置示例 · 未调用 AI';
-    $('revision-source').classList.toggle('live', live);
-    show('revised');
+
+  async function printRun() {
+    $('print-note').textContent = app.deviceOnline
+      ? '现场机器也在打同一张票；出仓以传感器回报为准。'
+      : '这台演示机没连实体打印机，下面这卷纸是页面动画。';
+    const bar = $('actionbar');
+    const wasHidden = bar.hidden;
+    bar.hidden = true;
+    show('print');
+    $('actionbar').hidden = true;
+    await new Promise((r) => setTimeout(r, reduced.matches ? 200 : 2100));
+    show('ticket');
+    bar.hidden = false;
+    void wasHidden;
   }
-  function capsule() {
-    $('paper-line').textContent = app.revision?.capsuleLine || app.story.synthesis;
-    $('paper-present-label').textContent = app.source === 'preset' ? '预置角色的现在：虚构' : app.hasPresentContext ? '现在：基于线索想象' : '现在：未知，由你定义';
+
+  /* ---------------- 胶囊 ---------------- */
+  function toCapsule() {
     show('capsule');
+    const line = app.extra?.capsuleLine;
+    $('capsule-line').textContent = line ? `胶囊标签：${line}` : '胶囊标签：这条路的副作用，已核验。';
   }
-  function restart() {
-    ++app.sequence; stopClock(); app.story = null; app.revision = null; app.source = null;
-    setInput(''); $('present-input').value = ''; $('present-details').open = false; $('lens-custom').value = ''; clearLens(); app.presentContext = ''; app.hasPresentContext = false;
-    $('challenge-input').value = ''; clearError('form-error'); clearError('challenge-error');
-    show('input'); $('choice-input').focus({ preventScroll: true });
+
+  /* 票面比一屏长时提示「还能往下翻」，滚到底自动收掉 */
+  function watchFace(face) {
+    if (!face) return;
+    const sync = () => {
+      const more = face.scrollHeight - face.clientHeight > 24;
+      face.classList.toggle('short', !more);
+      face.classList.toggle('at-end', face.scrollTop + face.clientHeight >= face.scrollHeight - 6);
+    };
+    face.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync);
+    face._syncCue = sync;
+    sync();
   }
-  function togglePanel(button, panel) {
-    const expand = button.getAttribute('aria-expanded') !== 'true';
-    button.setAttribute('aria-expanded', String(expand));
-    panel.classList.toggle('hidden', !expand);
-  }
-  let settingsReturn = null;
+  const syncCues = () => requestAnimationFrame(() => {
+    document.querySelectorAll('.face').forEach((f) => (f._syncCue ? f._syncCue() : watchFace(f)));
+  });
+
+  /* ---------------- 事件 ---------------- */
+  $('choice-input').addEventListener('input', (e) => { $('count').textContent = `${e.target.value.length} / 100`; });
+  document.querySelectorAll('.face').forEach(watchFace);
+  $('generate').addEventListener('click', () => start(null));
+  document.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => start(b.dataset.preset)));
+  document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => show(b.dataset.back)));
+  document.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => setAction(b.dataset.action)));
+  $('manual').addEventListener('click', () => completeAction('manual'));
+  $('main-action').addEventListener('pointerdown', async (e) => {
+    if (app.actionDone) return;
+    if (app.action === 'press') { holdStart(e); return; }
+    // 手机第一次要用户点头才给感应：这一下点击本身就是那个手势。
+    if (needsPermission() && !sensor.granted) await askPermission();
+    arm(app.action);
+  });
+  $('main-action').addEventListener('click', () => { if (app.actionDone) toCapsule(); });
+  $('restart').addEventListener('click', () => { $('choice-input').value = ''; $('count').textContent = '0 / 100'; show('start'); });
+  $('print-save').addEventListener('click', () => window.print());
+  const stage = document.querySelector('.ticket-stage');
+  stage.addEventListener('pointermove', (e) => {
+    const r = stage.getBoundingClientRect();
+    $('holo').style.setProperty('--px', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+    $('holo').style.setProperty('--py', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+  });
+
+  /* 弹窗 */
+  const open = (id) => { $(id).hidden = false; };
+  const close = (id) => { $(id).hidden = true; };
+  $('status').addEventListener('click', () => {
+    $('mode-description').textContent = app.ready
+      ? `你写的路会实时发给模型；模型写糖衣和背面小字。模型：${app.model}。`
+      : app.mock ? '服务端开着 MOCK_LLM，只能用现成案例。' : app.connected ? '本地服务连上了，还差一个 Key。' : '没连上本地服务，先用现成案例。';
+    $('mode-advice').textContent = app.deviceOnline
+      ? '实体机器在线：动作也做在机器上，出仓以机器回报为准。'
+      : '机器没连上：动作做在手机上（真的翻、真的摇、真的按住），页面会如实标注。';
+    open('mode-modal');
+  });
+  $('mode-close').addEventListener('click', () => close('mode-modal'));
+  $('mode-settings').addEventListener('click', () => { close('mode-modal'); openSettings(); });
   function openSettings() {
-    settingsReturn = document.activeElement;
-    $('api-base').value = app.apiBase;
-    $('api-key').value = app.apiKey;
-    $('model').value = app.model;
-    $('settings-modal').classList.remove('hidden');
-    $('settings-close').focus();
+    $('api-base').value = app.apiBase; $('api-key').value = app.apiKey; $('model').value = app.model;
+    open('settings-modal');
   }
-  function closeSettings() { $('settings-modal').classList.add('hidden'); settingsReturn?.focus(); }
-  $('choice-input').addEventListener('input', (event) => { $('count').textContent = `${event.target.value.length} / 100`; clearError('form-error'); });
-  document.querySelectorAll('[data-focus]').forEach((btn) => btn.addEventListener('click', () => setFocus(btn.dataset.focus)));
-  $('lens-custom').addEventListener('input', () => { clearLens(); clearError('form-error'); });
-  $('present-details').addEventListener('toggle', () => { if (!$('present-details').open) $('present-input').value = ''; });
-  document.querySelectorAll('[data-preset]').forEach((btn) => btn.addEventListener('click', () => usePreset(btn.dataset.preset)));
-  $('generate').addEventListener('click', generate);
-  $('loading-back').addEventListener('click', () => { ++app.sequence; stopClock(); show('input'); });
-  $('swap-view').addEventListener('click', () => $('path-grid').classList.toggle('swapped'));
-  $('assumption-toggle').addEventListener('click', () => togglePanel($('assumption-toggle'), $('assumption-panel')));
-  $('tech-toggle').addEventListener('click', () => togglePanel($('tech-toggle'), $('tech-panel')));
-  document.querySelectorAll('[data-challenge]').forEach((btn) => btn.addEventListener('click', () => { $('challenge-input').value = btn.dataset.challenge; clearError('challenge-error'); $('challenge-input').focus(); }));
-  $('revise').addEventListener('click', revise);
-  $('revision-back').addEventListener('click', () => { ++app.sequence; stopClock(); show('compare'); });
-  $('skip').addEventListener('click', capsule);
-  $('to-capsule').addEventListener('click', capsule);
-  $('print-paper').addEventListener('click', () => window.print());
-  $('restart').addEventListener('click', restart);
   $('settings-open').addEventListener('click', openSettings);
-  $('status').addEventListener('click', openSettings);
-  $('settings-close').addEventListener('click', closeSettings);
-  $('settings-modal').addEventListener('click', (e) => { if (e.target === $('settings-modal')) closeSettings(); });
-  $('settings-modal').addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeSettings();
-    if (e.key !== 'Tab') return;
-    const controls = [...$('settings-modal').querySelectorAll('button,input,select')];
-    if (e.shiftKey && document.activeElement === controls[0]) { e.preventDefault(); controls.at(-1).focus(); }
-    else if (!e.shiftKey && document.activeElement === controls.at(-1)) { e.preventDefault(); controls[0].focus(); }
+  $('settings-close').addEventListener('click', () => close('settings-modal'));
+  $('settings-save').addEventListener('click', async () => {
+    app.apiBase = $('api-base').value.trim() || location.origin;
+    app.apiKey = $('api-key').value.trim();
+    app.model = $('model').value;
+    safeSet('rnt.apiBase', app.apiBase); safeSet('rnt.apiKey', app.apiKey); safeSet('rnt.model', app.model);
+    close('settings-modal');
+    await probe();
   });
-  $('settings-save').addEventListener('click', () => {
-    const base = $('api-base').value.trim().replace(/\/+$/, '');
-    if (base) { app.apiBase = base; safeSet('rnt.apiBase', base); }
-    app.apiKey = $('api-key').value.trim(); app.model = $('model').value;
-    safeSet('rnt.apiKey', app.apiKey); safeSet('rnt.model', app.model);
-    closeSettings(); void probe();
-  });
+
+  show('start');
   void probe();
 })();

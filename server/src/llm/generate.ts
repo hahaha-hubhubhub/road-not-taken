@@ -40,19 +40,22 @@ export class InputRejectedError extends Error {
  */
 const clients = new Map<string, OpenAI>();
 
-export function getClient(apiKey?: string): OpenAI | null {
+/** 缓存键要带上 baseUrl：同一个 Key 指向不同网关时不能复用同一个 client */
+export function getClient(apiKey?: string, baseUrl?: string): OpenAI | null {
   if (config.mockLlm) return null; // 演示开关始终优先，避免页面/测试携带 Key 时误调用模型
   const key = (apiKey ?? config.stepfun.apiKey ?? '').trim();
   if (!key) return null;
-  const hit = clients.get(key);
+  const url = (baseUrl ?? '').trim().replace(/\/+$/, '') || config.stepfun.baseUrl;
+  const cacheKey = `${url}\u0000${key}`;
+  const hit = clients.get(cacheKey);
   if (hit) return hit;
   const created = new OpenAI({
     apiKey: key,
-    baseURL: config.stepfun.baseUrl,
+    baseURL: url,
     timeout: config.stepfun.timeoutMs,
     maxRetries: 1,
   });
-  clients.set(key, created);
+  clients.set(cacheKey, created);
   return created;
 }
 
@@ -70,6 +73,7 @@ function demoResult(input: string, startedAt: number, note: string, attempts: nu
       title: preset.title,
       scenes: preset.scenes.map((s) => ({ ...s })),
       ending: preset.ending,
+      ...(preset.letter ? { letter: preset.letter } : {}),
       disclaimer: CANONICAL_DISCLAIMER,
     },
   };
@@ -79,11 +83,19 @@ function demoResult(input: string, startedAt: number, note: string, attempts: nu
  * 生成一条"去滤镜"的平行人生。
  * 顺序：输入安全 → LLM（JSON Schema 严格模式）→ zod 业务校验 → 重试 → 降级。
  * @param apiKey 调用方（页面设置）传入的 Key，优先于服务端 .env
+ * @param baseUrl 页面设置里的 Base URL，优先于服务端 .env
+ * @param maxInputLength 输入上限：首页热敏票 100 字；手机纯文本预览 1000 字
  */
-export async function generateStory(input: string, apiKey?: string, model?: string): Promise<GenerateResult> {
+export async function generateStory(
+  input: string,
+  apiKey?: string,
+  model?: string,
+  baseUrl?: string,
+  maxInputLength = 100,
+): Promise<GenerateResult> {
   const startedAt = Date.now();
 
-  const verdict = checkInput(input);
+  const verdict = checkInput(input, maxInputLength);
   if (!verdict.safe) {
     if (verdict.reason === 'crisis') {
       return {
@@ -97,7 +109,7 @@ export async function generateStory(input: string, apiKey?: string, model?: stri
     throw new InputRejectedError(verdict.advice ?? '输入不合规，请换一种说法');
   }
 
-  const llm = getClient(apiKey);
+  const llm = getClient(apiKey, baseUrl);
   if (!llm) {
     if (config.mockLlm) return demoResult(input, startedAt, 'MOCK_LLM=1（演示模式）', 0);
     throw new Error(NO_KEY_MESSAGE);

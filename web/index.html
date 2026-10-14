@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>没走的路 · 后悔毒药</title>
-  <meta name="description" content="给没走的路拆掉滤镜，把虚构的平行人生装进一粒不能吃的故事胶囊。" />
+  <title>没走的路 · 硬件实验台</title>
+  <meta name="description" content="没走的路旧版硬件实验台：打印、卷纸和胶囊出仓的本地演示流程。" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" href="img/act-1.png" />
 </head>
@@ -13,10 +13,23 @@
     <header class="topbar">
       <div class="brand">没走的路 <span>Road Not Taken</span></div>
       <div class="topbar-right">
-        <button id="btn-status" class="status" type="button" title="点击打开设置">检测中…</button>
+        <button id="btn-status" class="status" type="button" title="查看当前运行模式" aria-haspopup="dialog" aria-controls="mode-modal">检测中…</button>
         <button id="btn-settings" class="icon-btn" type="button" aria-label="设置">⚙</button>
       </div>
     </header>
+
+    <a class="game-entry primary" href="regret-remedy/"><strong>打开《后悔药》体验页 ↗</strong><span>摇一摇或轻点药瓶，取一颗后悔药；写下那个「如果」，读三幕平行人生和另一个你寄来的信</span></a>
+    <a class="game-entry" href="demo.html"><strong>《后悔药贩卖机》热敏票版 ↗</strong><span>写一句没走的路，对机器做个动作，拿票卷进胶囊；这页继续保留硬件联调流程</span></a>
+
+    <div id="mode-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="mode-title">
+      <div class="modal-card mode-card">
+        <h2 id="mode-title">现在是什么模式</h2>
+        <p id="mode-description" class="sub"></p>
+        <p id="mode-device" class="hint"></p>
+        <p class="hint">现成案例都是虚构内容；网页里模拟打印和封装，不代表机器真的做完了。</p>
+        <div class="modal-actions"><button id="btn-mode-close" class="primary" type="button">懂了</button><button id="btn-mode-settings" class="ghost" type="button">去设置</button></div>
+      </div>
+    </div>
 
     <div id="offline-banner" class="banner hidden">
       <span>未连接本地服务，当前是<strong>演示模式</strong>（预生成案例）</span>
@@ -59,10 +72,10 @@
     <main>
       <!-- 1. 输入 -->
       <section id="view-input" class="view">
-        <h1>给遗憾开一粒“毒药”</h1>
-        <p class="sub">写下没走的路，AI 先承认它的好，再补上看不见的日常代价。这只是虚构，不是预测。</p>
+        <h1>硬件联调台</h1>
+        <p class="sub">这页负责试打印、动作解锁和胶囊流程。想玩完整流程，请去上面的《后悔药贩卖机》。</p>
 
-        <p class="muted small">输入会发送至所配置的服务端及模型供应商。请不要填写姓名、联系方式或他人的隐私；结果目前仍可能通过链接访问，不适合公开敏感经历。</p>
+        <p class="muted small">这段话会发给你配置的服务和模型。别填姓名、联系方式或别人的隐私；公开演示也别用真实伤心事。</p>
         <div class="field">
           <textarea id="input-text" rows="3" maxlength="100" placeholder="如果当时我……"></textarea>
           <div class="row between">
@@ -72,10 +85,10 @@
         </div>
 
         <p id="input-error" class="error hidden" role="alert"></p>
-        <button id="btn-generate" class="primary" type="button">拆掉滤镜，开始配药</button>
+        <button id="btn-generate" class="primary" type="button">开始跑一遍硬件流程</button>
 
         <div class="chips">
-          <div class="muted small">没有想法？点一个试试：</div>
+          <div class="muted small">懒得想？拿这几个公开案例试试：</div>
           <div id="demo-chips" class="chips-row"></div>
         </div>
       </section>
@@ -91,13 +104,32 @@
       <!-- 3. 等待硬件动作 -->
       <section id="view-waiting" class="view hidden">
         <div id="device-badge" class="badge hidden">实体设备已连接</div>
-        <h2>翻转设备，解锁这段平行人生</h2>
+        <h2>对机器做一个动作，票才打得出来</h2>
         <div id="action-card" class="action-card">
           <div id="action-text" class="action-text">向左翻 1 次</div>
           <div id="action-dots" class="dots"></div>
         </div>
-        <p id="waiting-hint" class="sub">完成翻转后才开始打印；纸带随后将被卷进展示胶囊。</p>
-        <button id="btn-simulate" class="primary hidden" type="button">我完成了翻转（演示）</button>
+        <p id="waiting-hint" class="sub">动作做完才开始打印；纸带随后被卷进展示胶囊。动作没到，机器不打。</p>
+
+        <!-- 手机动作：真传感器驱动，做满才放行 -->
+        <div id="phone-card" class="phone-card">
+          <div class="phone-head">
+            <h3>用手机做这个动作</h3>
+            <span id="phone-count" class="phone-count">0 / 0</span>
+          </div>
+          <p id="phone-sub" class="sub small">选一个动作，做在手机上。做满次数，机器才开工。</p>
+          <div id="phone-chips" class="phone-chips" role="group" aria-label="选一个手机动作"></div>
+          <div id="phone-armed" class="phone-armed hidden">
+            <p id="phone-arm-title" class="arm-title">正在等这个动作……</p>
+            <div id="sensor-readout" class="sensor" aria-hidden="true">传感器待命</div>
+            <div class="phone-bar"><i id="phone-bar-fill"></i></div>
+            <button id="phone-cancel" class="ghost small-btn" type="button">换一个动作</button>
+          </div>
+          <p id="phone-note" class="muted small"></p>
+          <p id="phone-insecure" class="warn small hidden"></p>
+        </div>
+
+        <button id="btn-simulate" class="ghost hidden" type="button">传感器没反应？点这里手动确认</button>
         <p id="waiting-note" class="muted small"></p>
         <button class="ghost" type="button" data-action="restart">重新输入</button>
       </section>

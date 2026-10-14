@@ -10,9 +10,12 @@ export type SafetyVerdict =
   | { safe: true }
   | { safe: false; reason: 'too_short' | 'crisis' | 'forbidden'; advice?: string };
 
-/** 心理危机 / 自伤：不继续生成黑色幽默，改为安抚文案 */
+/** 心理危机 / 自伤：不继续生成黑色幽默，改为安抚文案。
+ *  这条是全场唯一一条不能松的红线：毒舌的枪口对着「那条路」，
+ *  对着一个真的写不下去的人开火，伤的就不是笑话了。 */
 const CRISIS_PATTERNS = [
-  /自杀|自尽|自残|自伤|轻生|不想活|活不下去|想死|死了算了|割腕|跳楼|安眠药|解脱了/,
+  /自杀|自尽|自残|自伤|自虐|轻生|不想活|活不下去|想死|死了算了|割腕|跳楼|安眠药|解脱了/,
+  /一了百了|结束生命|了结自己|伤害自己|撑不下去了/,
   /kill myself|suicide|self[-\s]?harm/i,
 ];
 
@@ -24,7 +27,11 @@ const FORBIDDEN_PATTERNS = [
   /色情|做爱|裸照/,
 ];
 
-export function checkInput(text: string): SafetyVerdict {
+/**
+ * @param maxLength 上限。热敏票只印得下 100 字；手机纯文本预览（/api/stories/preview）
+ *   不打印，可以放宽到 1000 字，所以这里做成参数。
+ */
+export function checkInput(text: string, maxLength = 100): SafetyVerdict {
   const t = text.trim();
   // 危机路由必须先于普通长度校验；“想死”也应看到安抚，而非“请多写一点”。
   if (CRISIS_PATTERNS.some((re) => re.test(t))) {
@@ -33,8 +40,8 @@ export function checkInput(text: string): SafetyVerdict {
   if (t.length < 10) {
     return { safe: false, reason: 'too_short', advice: '请多写一点，至少 10 个字' };
   }
-  if (t.length > 100) {
-    return { safe: false, reason: 'too_short', advice: '请精简到 100 字以内' };
+  if (t.length > maxLength) {
+    return { safe: false, reason: 'too_short', advice: `请精简到 ${maxLength} 字以内` };
   }
   if (FORBIDDEN_PATTERNS.some((re) => re.test(t))) {
     return { safe: false, reason: 'forbidden' };
@@ -61,7 +68,7 @@ export const CARE_RESPONSE = {
       image_prompt: '黑白线描：一盏亮着的台灯和一杯热水，桌角一张折起来的纸条',
     },
     {
-      caption: '这一条我们不讲代价，也不讲意外——它值得被认真对待，而不是被写成段子。',
+      caption: '这次不讲代价，也不讲意外。你的处境需要被认真对待，不能拿来写段子。',
       image_prompt: '黑白线描：两把面对面的空椅子，中间一张小圆桌',
     },
     {

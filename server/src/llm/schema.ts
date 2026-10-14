@@ -12,11 +12,16 @@ import { CANONICAL_DISCLAIMER } from '../config.js';
 export const STORY_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'scenes', 'ending', 'disclaimer'],
+  required: ['title', 'scenes', 'ending', 'disclaimer', 'letter'],
   properties: {
     title: {
       type: 'string',
       description: '小票标题，8-16 字，格式类似"另一条路：大理"',
+    },
+    letter: {
+      type: 'string',
+      description:
+        '100-220 字的来信，寄件人是"另一条时间线里的你"：口语短句、2-4 个小段、回扣三格里的两个具体细节（数字、物件、原话），结尾认命得好笑。不是人生建议，不劝人回头。',
     },
     scenes: {
       type: 'array',
@@ -24,8 +29,16 @@ export const STORY_JSON_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['caption', 'image_prompt'],
+        required: ['heading', 'detail', 'caption', 'image_prompt'],
         properties: {
+          heading: {
+            type: 'string',
+            description: '2-20 字的小标题，从本格的具体动作或对白里取，不写大道理',
+          },
+          detail: {
+            type: 'string',
+            description: '手机端正文，60-140 字，比 caption 多一层上下文和因果，主体必须写清楚是谁在做什么',
+          },
           caption: {
             type: 'string',
             description: '该幕正文，40-80 字，具体细节，不说教',
@@ -52,11 +65,16 @@ export const STORY_JSON_SCHEMA = {
 export const RESPONSE_FORMAT_NAME = 'road_not_taken_story';
 
 export const SceneSchema = z.object({
+  /** heading / detail 是手机端长文案，热敏票不用；缺失时服务端兜底，不因此判生成失败 */
+  heading: z.string().trim().min(2).max(28).optional(),
+  detail: z.string().trim().min(20, 'detail 太短').max(220, 'detail 太长').optional(),
   caption: z.string().min(8, 'caption 太短').max(140, 'caption 太长'),
   image_prompt: z.string().min(4, 'image_prompt 太短').max(240, 'image_prompt 太长'),
 });
 
 export const StorySchema = z.object({
+  /** 来信同理：写崩了不该整条重来，缺了就由前端展示兜底文案 */
+  letter: z.string().trim().min(40, 'letter 太短').max(600, 'letter 太长').optional(),
   title: z.string().min(2, 'title 太短').max(40, 'title 太长'),
   scenes: z.array(SceneSchema).length(3, '必须正好三幕'),
   ending: z.string().min(2, 'ending 太短').max(80, 'ending 太长'),
@@ -69,9 +87,12 @@ export type Story = z.infer<typeof StorySchema>;
 /** 服务端统一规范化：免责声明以服务端为准，保证每条结果都带 */
 export function normalizeStory(raw: Story): Story {
   return {
+    ...(raw.letter ? { letter: raw.letter.trim() } : {}),
     title: raw.title.trim(),
     scenes: raw.scenes.map((s) => ({
       caption: s.caption.trim(),
+      ...(s.heading ? { heading: s.heading.trim() } : {}),
+      ...(s.detail ? { detail: s.detail.trim() } : {}),
       image_prompt: s.image_prompt.trim(),
     })),
     ending: raw.ending.trim(),

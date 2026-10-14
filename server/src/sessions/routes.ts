@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { CANONICAL_DISCLAIMER, SHARE_BASE, config } from '../config.js';
 import { gateway } from '../device/gateway.js';
 import { DEMO_CASES } from '../llm/demoCases.js';
+import { InputRejectedError, generateStory } from '../llm/generate.js';
 import { parallelRouter } from '../llm/parallel.js';
 import { sessionStore } from './store.js';
 import {
@@ -52,6 +53,62 @@ apiRouter.get('/demo/cases', (_req: Request, res: Response) => {
       disclaimer: CANONICAL_DISCLAIMER,
     })),
   });
+});
+
+/**
+ * 手机纯文本预览（`/regret-remedy/` 用）。
+ *
+ * 与首页热敏票共用同一条生成链路和同一份安全策略，区别只有三点：
+ * 1. 不创建 session、不碰硬件、不打印、不落盘；
+ * 2. 不打印，所以输入上限放宽到 1000 字（热敏票只印得下 100 字）；
+ * 3. 返回值对齐手机端要的字段：每格要有 heading / detail，外加一封「另一个你」的来信。
+ */
+const ACT_HEADINGS = ['看起来', '后来', '那边的我'];
+
+/** 模型漏写来信时的兜底：宁可短，也不要让信纸页空着或说错话 */
+function fallbackLetter(ending: string): string {
+  return `给现在的你：\n\n那边的我这几天也在加班，回信晚了，别怪我。\n\n${ending}\n\n另一个你`;
+}
+
+apiRouter.post('/stories/preview', async (req: Request, res: Response) => {
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  if (!text || text.length > 1000) {
+    res.status(400).json({ error: '请输入不超过 1000 字的选择' });
+    return;
+  }
+  try {
+    const result = await generateStory(
+      text,
+      req.header('x-stepfun-api-key') || undefined,
+      req.header('x-stepfun-model') || undefined,
+      req.header('x-stepfun-base-url') || undefined,
+      1000,
+    );
+    const { story, kind } = result;
+    res.json({
+      kind,
+      degraded: result.degraded,
+      durationMs: result.durationMs,
+      attempts: result.attempts,
+      story: {
+        title: story.title,
+        scenes: story.scenes.map((scene, i) => ({
+          heading: scene.heading || ACT_HEADINGS[i] || '',
+          detail: scene.detail || scene.caption,
+          caption: scene.caption,
+        })),
+        letter: kind === 'care' ? undefined : story.letter?.trim() || fallbackLetter(story.ending),
+      },
+    });
+  } catch (err) {
+    // 不转发提供商原始错误（可能含请求信息）；未配置密钥时引导去首页设置
+    res.status(err instanceof InputRejectedError ? 400 : 503).json({
+      error:
+        err instanceof InputRejectedError
+          ? err.message
+          : '生成未完成，请检查模型设置或稍后重试。未配置密钥时请到首页设置。',
+    });
+  }
 });
 
 /** 设备在线状态（前端据此决定：等硬件 / 演示模拟） */

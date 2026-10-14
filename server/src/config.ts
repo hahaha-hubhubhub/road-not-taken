@@ -50,6 +50,14 @@ export const config = {
   simulatedPrintMs: num(process.env.SIMULATED_PRINT_MS, 2600),
   capsuleTimeoutMs: num(process.env.CAPSULE_TIMEOUT_MS, 30000),
 
+  /**
+   * 手机传感器（陀螺仪 / 加速度计 / 麦克风）只在安全上下文里可用。
+   * 本机 localhost 天生安全；手机通过局域网 IP 访问就不安全了，
+   * 所以现场要用手机动作就得开 HTTPS=1。
+   */
+  https: bool(process.env.HTTPS),
+  tlsDir: process.env.TLS_DIR ?? path.join(ROOT_DIR, 'server', '.certs'),
+
   /** 58mm 热敏打印机：384 点/行 */
   print: { widthPx: 384 },
 
@@ -61,11 +69,11 @@ export const config = {
 export const SHARE_BASE = config.publicWebUrl || `http://localhost:${config.port}`;
 
 /** 固定免责声明：所有结果必须携带（PRD 原则 4 / 验收标准） */
-export const CANONICAL_DISCLAIMER = '这是模型生成的虚构故事，不是人生预测。';
+export const CANONICAL_DISCLAIMER = '这是故意丑化的虚构故事。不是人生预测。';
 
 /** 三幕固定标签（服务端渲染，避免模型漂移） */
 export const ACT_LABELS = [
-  { index: 1, name: '滤镜', hint: '那条路最诱人的样子' },
-  { index: 2, name: '代价', hint: '没被想象到的日常' },
-  { index: 3, name: '意外', hint: '荒诞或意外的落点' },
+  { index: 1, name: '广告片', hint: '那条路先把好处拍给你看' },
+  { index: 2, name: '账单', hint: '营业后台开始算钱和时间' },
+  { index: 3, name: '本人证词', hint: '那边的我出来认账' },
 ] as const;

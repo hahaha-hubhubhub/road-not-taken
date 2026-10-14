@@ -13,7 +13,8 @@ import WebSocket from 'ws';
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const DEBUG_PORT = Number(process.env.CDP_PORT ?? 9222);
-const url = process.argv[2] ?? 'http://127.0.0.1:8787/';
+/** 默认跑一次预置案例：页面需要 ?autostart= 才会自己开始生成，否则会停在输入页 */
+const url = process.argv[2] ?? `http://127.0.0.1:8787/?autostart=${encodeURIComponent('如果当年我选了去大理开民宿，现在应该天天晒太阳')}`;
 const waitMs = Number(process.argv[3] ?? 90000);
 /** 可选：把 Key 写进页面 localStorage，模拟用户在「设置」里填过 Key */
 const testKey = process.argv[4] || process.env.RNT_TEST_KEY || '';
