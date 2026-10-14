@@ -2,6 +2,7 @@ import express from 'express';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
+import path from 'node:path';
 import { config, WEB_DIR } from './config.js';
 import { gateway } from './device/gateway.js';
 import { sessionStore } from './sessions/store.js';
@@ -46,6 +47,14 @@ app.use((req, res, next) => {
 });
 
 if (fs.existsSync(WEB_DIR)) {
+  app.get('/', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(path.join(WEB_DIR, 'regret-remedy', 'index.html'));
+  });
+  app.get(['/index.html', '/regret-remedy', '/regret-remedy/'], (req, res) => {
+    const query = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    res.redirect(302, `/${query}`);
+  });
   app.use(
     express.static(WEB_DIR, {
       index: 'index.html',

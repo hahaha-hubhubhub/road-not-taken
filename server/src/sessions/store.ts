@@ -6,6 +6,7 @@ import type { Move } from '../device/protocol.js';
 export type SessionState =
   | 'created'
   | 'generating'
+  | 'await_demo'
   | 'await_action'
   | 'printing'
   | 'encapsulating'

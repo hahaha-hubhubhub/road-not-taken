@@ -1,0 +1,126 @@
+[
+  {
+    "id": "dali",
+    "label": "辞职去大理开咖啡店",
+    "input": "如果我辞职去大理开咖啡店",
+    "title": "另一条路：大理",
+    "kind": "demo",
+    "state": "done",
+    "delivery": "demo",
+    "acts": [
+      {
+        "index": 1,
+        "name": "滤镜",
+        "caption": "你在洱海边有了一扇总能照进晨光的窗，朋友们说你终于活成了自己。",
+        "imageUrl": "/img/act-1.png"
+      },
+      {
+        "index": 2,
+        "name": "代价",
+        "caption": "旺季时每天站十二小时，淡季用同一袋豆子解释三种风味；房东第三次涨租那天，窗外的云依然很好看。",
+        "imageUrl": "/img/act-2.png"
+      },
+      {
+        "index": 3,
+        "name": "意外",
+        "caption": "两年后店里评分最高的商品不是咖啡，是你为补贴房租顺手做的 Excel 经营模板。",
+        "imageUrl": "/img/act-3.png"
+      }
+    ],
+    "ending": "另一条路也有风景，也要交房租。",
+    "disclaimer": "这是预写的虚构演示故事，不是人生预测。"
+  },
+  {
+    "id": "beijing",
+    "label": "毕业后留在北京",
+    "input": "如果我毕业后留在北京",
+    "title": "另一条路：北京",
+    "kind": "demo",
+    "state": "done",
+    "delivery": "demo",
+    "acts": [
+      {
+        "index": 1,
+        "name": "滤镜",
+        "caption": "你在地铁尽头租下一间朝北的屋子，睡前刷到的全是行业峰会和深夜食堂。",
+        "imageUrl": "/img/act-1.png"
+      },
+      {
+        "index": 2,
+        "name": "代价",
+        "caption": "通勤两小时，加班到十一点，周末用来补觉；你学会了在三平米的厨房里同时煮面和回工作消息。",
+        "imageUrl": "/img/act-2.png"
+      },
+      {
+        "index": 3,
+        "name": "意外",
+        "caption": "第五年你终于搬进了南向的房子，也终于发现，你只是想被看见。",
+        "imageUrl": "/img/act-3.png"
+      }
+    ],
+    "ending": "你留下来了，也把自己留在了那里。",
+    "disclaimer": "这是预写的虚构演示故事，不是人生预测。"
+  },
+  {
+    "id": "art",
+    "label": "学美术而不是计算机",
+    "input": "如果我学的是美术而不是计算机",
+    "title": "另一条路：美院",
+    "kind": "demo",
+    "state": "done",
+    "delivery": "demo",
+    "acts": [
+      {
+        "index": 1,
+        "name": "滤镜",
+        "caption": "你在画室里待到熄灯，松节油的味道盖过了宿舍的泡面味，老师说你有天赋。",
+        "imageUrl": "/img/act-1.png"
+      },
+      {
+        "index": 2,
+        "name": "代价",
+        "caption": "为了买颜料去画室代课，为了交作业通宵；母亲的电话从\"稳定一点\"变成\"你吃饭了吗\"。",
+        "imageUrl": "/img/act-2.png"
+      },
+      {
+        "index": 3,
+        "name": "意外",
+        "caption": "十年后你给一款App画图标，甲方说\"再鲜艳一点\"，你改了十七版。",
+        "imageUrl": "/img/act-3.png"
+      }
+    ],
+    "ending": "热爱没有贬值，账单也没有。",
+    "disclaimer": "这是预写的虚构演示故事，不是人生预测。"
+  },
+  {
+    "id": "stay",
+    "label": "当时没有和他分手",
+    "input": "如果我当时没有和他分手",
+    "title": "另一条路：留下",
+    "kind": "demo",
+    "state": "done",
+    "delivery": "demo",
+    "acts": [
+      {
+        "index": 1,
+        "name": "滤镜",
+        "caption": "你们养了一只猫，周末去宜家买了一块谁都说好看的茶几。",
+        "imageUrl": "/img/act-1.png"
+      },
+      {
+        "index": 2,
+        "name": "代价",
+        "caption": "争吵从谁洗碗开始，到\"你从来不改\"结束；和解的方式是点两份外卖，然后一起看完一档无聊综艺。",
+        "imageUrl": "/img/act-2.png"
+      },
+      {
+        "index": 3,
+        "name": "意外",
+        "caption": "第三年你们婚礼请了十二桌，你致辞时说\"谢谢你忍我\"，全场都笑了。",
+        "imageUrl": "/img/act-3.png"
+      }
+    ],
+    "ending": "留下不是胜利，只是另一种日常。",
+    "disclaimer": "这是预写的虚构演示故事，不是人生预测。"
+  }
+]

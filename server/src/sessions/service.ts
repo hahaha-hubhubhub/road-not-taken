@@ -14,6 +14,8 @@ export interface PublicAct {
   name: string;
   hint: string;
   caption: string;
+  heading?: string;
+  detail?: string;
   imagePrompt: string;
   /** MVP 使用预置插画，图片生成接入后替换为按 session 出图 */
   imageUrl: string;
@@ -25,6 +27,7 @@ export interface PublicSessionView {
   title?: string;
   acts?: PublicAct[];
   ending?: string;
+  letter?: string;
   disclaimer?: string;
   action?: { text: string; moves: Move[]; done: number; total: number };
   kind?: GenerateKind;
@@ -62,10 +65,13 @@ export function getPublicView(s: SessionRecord): PublicSessionView {
       name: ACT_LABELS[i]?.name ?? `第 ${i + 1} 幕`,
       hint: ACT_LABELS[i]?.hint ?? '',
       caption: scene.caption,
+      heading: scene.heading,
+      detail: scene.detail,
       imagePrompt: scene.image_prompt,
       imageUrl: `/img/act-${i + 1}.png`,
     }));
     view.ending = s.story.ending;
+    view.letter = s.story.letter;
     view.disclaimer = s.story.disclaimer;
   }
   if (s.action) {
@@ -78,7 +84,7 @@ export function getPublicView(s: SessionRecord): PublicSessionView {
   }
   if (s.kind) view.kind = s.kind;
   if (s.degraded) view.degraded = true;
-  if (s.note) view.note = s.note;
+  // Provider diagnostics remain server-side; they may include request details.
   if (s.error) view.error = s.error;
   if (s.shareUrl) view.shareUrl = s.shareUrl;
   if (s.generateMs !== undefined) view.generateMs = s.generateMs;
@@ -157,33 +163,36 @@ export function startGeneration(
       });
       return;
     }
-    const action = makeActionCommand();
     sessionStore.patch(sessionId, {
-      state: 'await_action',
       story: result.story,
       kind: result.kind,
       degraded: result.degraded,
       note: result.note,
       generateMs: result.durationMs,
-      action,
-      authorizedPrint: false,
-      imageStatus: 'pending',
-      imageReadyActs: [],
-      shareUrl: `${SHARE_BASE}/#/r/${sessionId}`,
     });
-
-    // 生图与状态机并行，不阻塞进入 await_action。
-    // 用户在翻转设备那几秒里图片刚好在后台生成完，感知不到额外等待；
-    // 若图没赶上，前端继续显示预置图，不影响取票。
-    void kickOffImages(sessionId, result.story, imageModel);
-
-    const updated = sessionStore.get(sessionId);
-    if (updated) bus.emit('session:ready', updated);
+    if (result.kind === 'demo' && !config.mockLlm) {
+      sessionStore.patch(sessionId, { state: 'await_demo' });
+      return; // Do not dispatch a fallback to hardware before consent.
+    }
+    activateSession(sessionId, imageModel);
   })().catch((err: unknown) => {
     if (sessionStore.get(sessionId)?.state !== 'generating') return;
     const message = err instanceof Error ? err.message : String(err);
     sessionStore.patch(sessionId, { state: 'error', error: message });
   });
+}
+
+/** Start the original hardware pipeline after successful generation or explicit demo acceptance. */
+export function activateSession(sessionId: string, imageModel?: string): boolean {
+  const s = sessionStore.get(sessionId);
+  if (!s?.story || !['generating', 'await_demo'].includes(s.state) || s.kind === 'care') return false;
+  sessionStore.patch(sessionId, {
+    state: 'await_action', action: makeActionCommand(), authorizedPrint: false,
+    imageStatus: 'pending', imageReadyActs: [], shareUrl: `${SHARE_BASE}/#/r/${sessionId}`,
+  });
+  void kickOffImages(sessionId, s.story, imageModel);
+  bus.emit('session:ready', s);
+  return true;
 }
 
 /**

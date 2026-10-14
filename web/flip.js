@@ -54,9 +54,9 @@
    * 创建一个翻转检测器。
    * @param {('L'|'R')[]} moves 期待的动作序列，来自服务端 session.action.moves
    */
-  function createFlipDetector(moves) {
+  function createFlipDetector(moves, initialDone = 0) {
     const seq = Array.isArray(moves) ? moves.slice() : [];
-    let done = 0;
+    let done = Math.max(0, Math.min(seq.length, initialDone));
     let armed = true;
     let lastFlipAt = 0;
     let listening = false;
@@ -131,7 +131,7 @@
       async start() {
         const perm = await requestFlipPermission();
         if (perm !== 'granted') return false;
-        startListening();
+        if (done < seq.length) startListening();
         return true;
       },
 

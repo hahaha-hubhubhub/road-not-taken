@@ -51,7 +51,7 @@ flowchart LR
 
 ### 字段/契约重点
 
-`Session.state`: `created | generating | await_action | printing | encapsulating | done | error`。`delivery`: `demo | receipt | capsule`。`hello.capabilities.capsule` 只声明**协议模拟能力**，不是机械安全认证。设备上报 `capsule_dispensed` 必须同时包含三项传感器结果；服务端只把消息作为状态证据，无法验证传感器是否真实。任何单项 false、错 session、错设备、未授权消息都不许完成。
+`Session.state`: `created | generating | await_demo | await_action | printing | encapsulating | done | error`。`delivery`: `demo | receipt | capsule`。`hello.capabilities.capsule` 只声明**协议模拟能力**，不是机械安全认证。设备上报 `capsule_dispensed` 必须同时包含三项传感器结果；服务端只把消息作为状态证据，无法验证传感器是否真实。任何单项 false、错 session、错设备、未授权消息都不许完成。
 
 **纸带**：58mm 热敏打印机，文字版三幕；不裁成 58mm 以下的小口服胶囊。展示胶囊轴向长度按 ≥65mm *提案*打样，不可标为药品或食品。切刀应与打印机实际型号匹配；纸长、卷径、热敏面朝向与 QR（当前胶囊无 QR）均需实测。若需要普通小胶囊，必须另选窄幅打印方案并重做纸路。
 

@@ -8,6 +8,7 @@ import { imagePath } from '../llm/image.js';
 import { sessionStore } from './store.js';
 import {
   completeAction,
+  activateSession,
   createSession,
   getPublicView,
   startGeneration,
@@ -28,6 +29,8 @@ apiRouter.get('/health', (_req: Request, res: Response) => {
     model: config.stepfun.model,
     mockLlm: config.mockLlm,
     hasServerKey: config.hasServerKey,
+    imageConfigured: config.image.enabled,
+    imageModel: config.image.model,
     uptime: process.uptime(),
   });
 });
@@ -119,6 +122,15 @@ apiRouter.get('/sessions/:id', (req: Request, res: Response) => {
   res.json(getPublicView(session));
 });
 
+apiRouter.post('/sessions/:id/accept-demo', (req: Request, res: Response) => {
+  const s = sessionStore.get(req.params.id);
+  if (!s) { res.status(404).json({ error: '体验不存在或已过期' }); return; }
+  if (s.state !== 'await_demo' || !activateSession(s.id, req.header('x-stepfun-image-model'))) {
+    res.status(409).json({ error: '当前不能接受演示案例' }); return;
+  }
+  res.json(getPublicView(s));
+});
+
 /** 分享用二维码（小票上的同一张，PNG，480px） */
 apiRouter.get('/sessions/:id/qr.png', async (req: Request, res: Response) => {
   const session = sessionStore.get(req.params.id);
@@ -144,6 +156,9 @@ apiRouter.get('/sessions/:id/result', (req: Request, res: Response) => {
   if (!session) {
     res.status(404).json({ error: 'session 不存在或已过期（结果默认保留 24 小时）' });
     return;
+  }
+  if (session.state !== 'done' || session.kind === 'care') {
+    res.status(409).json({ error: '结果尚未完成或不提供分享' }); return;
   }
   res.json(getPublicView(session));
 });
@@ -248,7 +263,9 @@ apiRouter.post('/sessions/:id/cancel', (req: Request, res: Response) => {
     res.status(404).json({ error: 'session 不存在或已过期' });
     return;
   }
-  gateway.cancel(session.id);
-  sessionStore.patch(session.id, { state: 'error', error: '已取消' });
+  if (session.state !== 'done' && session.state !== 'error') {
+    gateway.cancel(session.id);
+    sessionStore.patch(session.id, { state: 'error', error: '已取消', input: undefined });
+  }
   res.json(getPublicView(sessionStore.get(session.id)!));
 });

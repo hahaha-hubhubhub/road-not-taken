@@ -22,7 +22,8 @@
     "sample-receipt": "tsx scripts/makeSampleReceipt.ts",
     "thermalize-existing": "tsx scripts/thermalizeExisting.ts",
     "check-thermal": "tsx scripts/checkThermalRouting.ts",
-    "test:story-quality": "npm run build && node --test tests/story-quality.test.mjs"
+    "test:story-quality": "npm run build && node --test tests/story-quality.test.mjs",
+    "test:unified": "npm run build && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

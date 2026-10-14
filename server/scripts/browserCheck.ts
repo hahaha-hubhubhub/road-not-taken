@@ -22,28 +22,8 @@ const allowDemo = process.env.RNT_ALLOW_DEMO === '1';
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 const PROBE = `(() => {
-  const vis = (id) => {
-    const el = document.getElementById(id);
-    if (!el) return 'missing';
-    return el.className.includes('hidden') ? 'hidden' : 'visible';
-  };
-  return JSON.stringify({
-    views: { input: vis('view-input'), generating: vis('view-generating'), waiting: vis('view-waiting'), printing: vis('view-printing'), encapsulating: vis('view-encapsulating'), result: vis('view-result') },
-    offlineBanner: !document.getElementById('offline-banner').className.includes('hidden'),
-    offlineReason: document.body.dataset.offlineReason || '',
-    lastApi: document.body.dataset.lastApi || '',
-    chips: document.querySelectorAll('.chip').length,
-    receiptTitle: (document.querySelector('.receipt-title') || {}).textContent || '',
-    actLabels: document.querySelectorAll('.act-label').length,
-    ending: (document.querySelector('.ending') || {}).textContent || '',
-    disclaimer: (document.querySelector('.disclaimer') || {}).textContent || '',
-    hasQr: !!document.querySelector('.qr-wrap img'),
-    degradedTag: !!document.querySelector('.tag-degraded'),
-    footer: (document.querySelector('.receipt-foot') || {}).textContent || '',
-    settingsOpen: !document.getElementById('settings-modal').className.includes('hidden'),
-    statusText: (document.getElementById('btn-status') || {}).textContent || '',
-    deliveryNote: (document.getElementById('delivery-note') || {}).textContent || '',
-  });
+ const visible=id=>{const e=document.getElementById(id);return e&&!e.hidden?'visible':'hidden';};
+ return JSON.stringify({views:{home:visible('home'),pill:visible('pill-screen'),input:visible('input-screen'),waiting:visible('waiting-screen'),output:visible('output-screen'),story:visible('story-screen'),envelope:visible('envelope-screen'),letter:visible('letter-screen'),result:visible('receipt-screen')},phase:document.getElementById('output-screen')?.dataset.phase,actLabels:document.querySelectorAll('#receipt-body section').length,hasQr:!!document.getElementById('qr-image')?.src,demoChoice:visible('demo-choice'),errorText:document.getElementById('error')?.textContent,settingsOpen:document.getElementById('settings')?.open,statusText:document.getElementById('connection-status')?.textContent,deliveryNote:document.getElementById('delivery-note')?.textContent,degradedTag:/预写/.test(document.getElementById('generation-status')?.textContent||''),offlineBanner:/连接设置/.test(document.getElementById('connection-status')?.textContent||'')});
 })()`;
 
 async function main(): Promise<void> {
@@ -120,6 +100,7 @@ async function main(): Promise<void> {
   let last = '';
   let done = false;
   let clickedSimulate = false;
+  let submitted = false;
   let seenEncapsulating = false;
 
   while (Date.now() - started < waitMs) {
@@ -131,8 +112,19 @@ async function main(): Promise<void> {
     if (!raw) continue;
     const state = JSON.parse(raw) as Record<string, any>;
     last = raw;
-    if (state.views.encapsulating === 'visible') seenEncapsulating = true;
+    if (state.phase === 'encapsulating') seenEncapsulating = true;
 
+    const sample = new URL(url).searchParams.get('autostart') || '如果我辞职去大理开咖啡店';
+    if (submitted && state.views.input === 'visible' && /待设置模型/.test(state.statusText || '')) break;
+    let action = '';
+    if (state.views.home === 'visible') action = "document.getElementById('bottle').click()";
+    else if (state.views.pill === 'visible') action = "document.getElementById('pill').click()";
+    else if (state.views.input === 'visible' && state.demoChoice === 'visible' && allowDemo) action = "document.getElementById('demo-choice').click()";
+    else if (state.views.input === 'visible' && !submitted) { submitted = true; action = `document.getElementById('regret').value=${JSON.stringify(sample)};document.getElementById('regret-form').requestSubmit()`; }
+    else if (state.views.story === 'visible') action = "document.getElementById('next').click()";
+    else if (state.views.envelope === 'visible') action = "document.getElementById('open-letter').click()";
+    else if (state.views.letter === 'visible') action = "document.getElementById('view-receipt').click()";
+    if (action) await command('Runtime.evaluate', { expression: action }, sessionId);
     if (state.views.result === 'visible') {
       done = true;
       break;
@@ -142,7 +134,7 @@ async function main(): Promise<void> {
       clickedSimulate = true;
       await command(
         'Runtime.evaluate',
-        { expression: `document.getElementById('btn-simulate').click()` },
+        { expression: `document.getElementById('simulate').click()` },
         sessionId,
       );
       console.log('  → 已点击「我完成了翻转（演示）」');
@@ -153,7 +145,7 @@ async function main(): Promise<void> {
   console.log(`\n=== 结果（${((Date.now() - started) / 1000).toFixed(1)}s，${done ? '已出票' : '超时未完成'}）===`);
   console.log(JSON.stringify(state, null, 2));
 
-  const noKeyFlow = state.settingsOpen === true && /未设置 Key/.test(state.statusText || '');
+  const noKeyFlow = state.views.input === 'visible' && /待设置模型/.test(state.statusText || '');
   const ok =
     state.offlineBanner === false &&
     (noKeyFlow ||
@@ -166,7 +158,7 @@ async function main(): Promise<void> {
     `\n${
       ok
         ? noKeyFlow
-          ? '✅ 无 Key 时正确弹出设置并提示（预期行为）'
+          ? '✅ 无 Key 时保留输入并提示设置（预期行为）'
           : allowDemo ? '✅ 浏览器模拟胶囊流程通过（含封装阶段）'
             : '✅ 浏览器端到端通过（真实模型生成 + 二维码）'
         : '❌ 未通过'

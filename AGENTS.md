@@ -51,8 +51,8 @@ git push origin main
 
 ## 后悔药网页原型
 
-- 源码位于 `web/regret-remedy/`，预览地址为 `/regret-remedy/`。
-- 药丸页调用 `/api/stories/preview`。区分模型生成、关怀回应和预写演示；降级不能冒充个性化结果。
+- 源码位于 `web/regret-remedy/`，唯一主入口为 `/`，旧地址 `/regret-remedy/` 跳转至主入口。
+- 药丸页使用 `/api/sessions`，统一文字、生图、翻转、打印、封装和分享；`/api/stories/preview` 仅保留为兼容 API。区分模型生成、关怀回应和预写演示；降级不能冒充个性化结果。
 - 生成逻辑修改后运行 `cd server && npm run test:story-quality`；测试替身通过不代表真实模型文案质量已验证。
 - 页面修改后执行 `node --check web/regret-remedy/app.js`，并验证取药、输入、三幕、拆信和重新开始。
 - ZIP 解压目录没有 Git 历史，不能直接上传。先将本次变更应用到已认证的 Git clone；不要创建无关历史覆盖远程。
